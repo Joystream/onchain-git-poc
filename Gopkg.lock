@@ -631,14 +631,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0799b586aeed41a4fb7a1bd1c8d95ee98c08bdec022fea5bf2d746a72752400b"
+  digest = "1:8655481729d85c1e9e0c3692988fc5a3a2715813427f9e3dcc33be0d65c80ae6"
   name = "golang.org/x/sys"
   packages = [
     "cpu",
     "unix",
   ]
   pruneopts = "UT"
-  revision = "2a47403f2ae58167c4d75973960ccc62b28cb0d8"
+  revision = "b05ddf57801d2239d6ab0ee35f9d981e0420f4ac"
 
 [[projects]]
   digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
@@ -749,11 +749,11 @@
     "github.com/spf13/viper",
     "github.com/tendermint/go-amino",
     "github.com/tendermint/tendermint/abci/types",
+    "github.com/tendermint/tendermint/config",
     "github.com/tendermint/tendermint/libs/cli",
     "github.com/tendermint/tendermint/libs/common",
     "github.com/tendermint/tendermint/libs/db",
     "github.com/tendermint/tendermint/libs/log",
-    "github.com/tendermint/tendermint/p2p",
     "github.com/tendermint/tendermint/types",
   ]
   solver-name = "gps-cdcl"
