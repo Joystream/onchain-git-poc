@@ -1,0 +1,3 @@
+# TODOs
+
+* Write pushed Git data to Cosmos store
