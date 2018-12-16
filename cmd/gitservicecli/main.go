@@ -5,7 +5,6 @@ import (
 
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/keys"
-	"github.com/cosmos/cosmos-sdk/client/lcd"
 	"github.com/cosmos/cosmos-sdk/client/rpc"
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	"github.com/cosmos/cosmos-sdk/version"
@@ -15,20 +14,9 @@ import (
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
-	auth "github.com/cosmos/cosmos-sdk/x/auth/client/rest"
-	bankcmd "github.com/cosmos/cosmos-sdk/x/bank/client/cli"
-	bank "github.com/cosmos/cosmos-sdk/x/bank/client/rest"
 	app "github.com/joystream/onchain-git-poc"
-	nsclient "github.com/joystream/onchain-git-poc/x/nameservice/client"
-	nsrest "github.com/joystream/onchain-git-poc/x/nameservice/client/rest"
+	gitServiceClient "github.com/joystream/onchain-git-poc/x/gitService/client"
 )
-
-const (
-	storeAcc = "acc"
-	storeNS  = "nameservice"
-)
-
-var defaultCLIHome = os.ExpandEnv("$HOME/.nscli")
 
 func main() {
 	cobra.EnableCommandSorting = false
@@ -42,13 +30,11 @@ func main() {
 	config.SetBech32PrefixForConsensusNode(sdk.Bech32PrefixConsAddr, sdk.Bech32PrefixConsPub)
 	config.Seal()
 
-	mc := []sdk.ModuleClients{
-		nsclient.NewModuleClient(storeNS, cdc),
-	}
+	mc := gitServiceClient.NewModuleClient("gitService", cdc)
 
 	rootCmd := &cobra.Command{
-		Use:   "nscli",
-		Short: "nameservice Client",
+		Use:   "gitservicecli",
+		Short: "GitService Client",
 	}
 
 	// Construct Root Command
@@ -59,13 +45,12 @@ func main() {
 		queryCmd(cdc, mc),
 		txCmd(cdc, mc),
 		client.LineBreak,
-		lcd.ServeCommand(cdc, registerRoutes),
-		client.LineBreak,
 		keys.Commands(),
 		client.LineBreak,
 		version.VersionCmd,
 	)
 
+	defaultCLIHome := os.ExpandEnv("$HOME/.gitservicecli")
 	executor := cli.PrepareMainCmd(rootCmd, "NS", defaultCLIHome)
 	err := executor.Execute()
 	if err != nil {
@@ -73,17 +58,7 @@ func main() {
 	}
 }
 
-func registerRoutes(rs *lcd.RestServer) {
-	rs.CliCtx = rs.CliCtx.WithAccountDecoder(rs.Cdc)
-	keys.RegisterRoutes(rs.Mux, rs.CliCtx.Indent)
-	rpc.RegisterRoutes(rs.CliCtx, rs.Mux)
-	tx.RegisterRoutes(rs.CliCtx, rs.Mux, rs.Cdc)
-	auth.RegisterRoutes(rs.CliCtx, rs.Mux, rs.Cdc, storeAcc)
-	bank.RegisterRoutes(rs.CliCtx, rs.Mux, rs.Cdc, rs.KeyBase)
-	nsrest.RegisterRoutes(rs.CliCtx, rs.Mux, rs.Cdc, storeNS)
-}
-
-func queryCmd(cdc *amino.Codec, mc []sdk.ModuleClients) *cobra.Command {
+func queryCmd(cdc *amino.Codec, mc sdk.ModuleClients) *cobra.Command {
 	queryCmd := &cobra.Command{
 		Use:     "query",
 		Aliases: []string{"q"},
@@ -96,33 +71,24 @@ func queryCmd(cdc *amino.Codec, mc []sdk.ModuleClients) *cobra.Command {
 		tx.SearchTxCmd(cdc),
 		tx.QueryTxCmd(cdc),
 		client.LineBreak,
-		authcmd.GetAccountCmd(storeAcc, cdc),
+		authcmd.GetAccountCmd("acc", cdc),
 	)
 
-	for _, m := range mc {
-		queryCmd.AddCommand(m.GetQueryCmd())
-	}
+	queryCmd.AddCommand(mc.GetQueryCmd())
 
 	return queryCmd
 }
 
-func txCmd(cdc *amino.Codec, mc []sdk.ModuleClients) *cobra.Command {
+func txCmd(cdc *amino.Codec, mc sdk.ModuleClients) *cobra.Command {
 	txCmd := &cobra.Command{
 		Use:   "tx",
 		Short: "Transactions subcommands",
 	}
 
 	txCmd.AddCommand(
-		bankcmd.SendTxCmd(cdc),
-		client.LineBreak,
 		authcmd.GetSignCommand(cdc),
-		bankcmd.GetBroadcastCommand(cdc),
 		client.LineBreak,
 	)
-
-	for _, m := range mc {
-		txCmd.AddCommand(m.GetTxCmd())
-	}
 
 	return txCmd
 }

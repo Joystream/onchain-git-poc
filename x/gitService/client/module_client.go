@@ -2,7 +2,7 @@ package client
 
 import (
 	"github.com/cosmos/cosmos-sdk/client"
-	nameservicecmd "github.com/joystream/onchain-git-poc/x/nameservice/client/cli"
+	gitServiceCmd "github.com/joystream/onchain-git-poc/x/gitService/client/cli"
 	"github.com/spf13/cobra"
 	amino "github.com/tendermint/go-amino"
 )
@@ -13,7 +13,7 @@ type ModuleClient struct {
 	cdc      *amino.Codec
 }
 
-// NewModuleClient instantiates ModuleClient
+// NewModuleClient is the ModuleClient constructor
 func NewModuleClient(storeKey string, cdc *amino.Codec) ModuleClient {
 	return ModuleClient{storeKey, cdc}
 }
@@ -22,29 +22,24 @@ func NewModuleClient(storeKey string, cdc *amino.Codec) ModuleClient {
 func (mc ModuleClient) GetQueryCmd() *cobra.Command {
 	// Group gov queries under a subcommand
 	govQueryCmd := &cobra.Command{
-		Use:   "nameservice",
-		Short: "Querying commands for the nameservice module",
+		Use:   "gitService",
+		Short: "GitService query commands",
 	}
 
 	govQueryCmd.AddCommand(client.GetCommands(
-		nameservicecmd.GetCmdResolveName(mc.storeKey, mc.cdc),
-		nameservicecmd.GetCmdWhois(mc.storeKey, mc.cdc),
+		gitServiceCmd.GetCmdListRefs(mc.storeKey, mc.cdc),
 	)...)
 
 	return govQueryCmd
 }
 
-// GetTxCmd returns the transaction commands for this module
+// GetTxCmd returns the cli transaction commands for this module
 func (mc ModuleClient) GetTxCmd() *cobra.Command {
+	// Group gov queries under a subcommand
 	govTxCmd := &cobra.Command{
-		Use:   "nameservice",
-		Short: "Nameservice transactions subcommands",
+		Use:   "gitService",
+		Short: "GitService transaction commands",
 	}
-
-	govTxCmd.AddCommand(client.PostCommands(
-		nameservicecmd.GetCmdBuyName(mc.cdc),
-		nameservicecmd.GetCmdSetName(mc.cdc),
-	)...)
 
 	return govTxCmd
 }

@@ -19,6 +19,6 @@ update_vendor_deps:
 	@dep ensure -v -update
 
 install:
+	go install ./cmd/gitserviced
+	go install ./cmd/gitservicecli
 	go install ./cmd/git-remote-joystream
-	go install ./cmd/nsd
-	go install ./cmd/nscli

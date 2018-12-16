@@ -6,12 +6,15 @@ import (
 	"os"
 	"strings"
 	"fmt"
+	"regexp"
 
 	"github.com/spf13/cobra"
 )
 
-func handlePushBatch(args [][]string) error {
-	fmt.Fprintf(os.Stderr, "Handling push batch: %v\n", args)
+var reJoystreamURL = regexp.MustCompile("joystream://(.+)/(.+)/(.+)")
+
+func handlePushBatch(args [][]string, repo repository) error {
+	fmt.Fprintf(os.Stderr, "Handling push batch for repo %v: %v\n", repo, args)
 	fmt.Printf("\n")
 	return nil
 	// repo, fs, err := r.initRepoIfNeeded(ctx, gitCmdPush)
@@ -111,85 +114,45 @@ func handlePushBatch(args [][]string) error {
 	// return commits, nil
 }
 
-func handleList(args []string) error {
-	if len(args) == 1 && args[0] == "for-push" {
+func handleList(repo repository, command []string) error {
+	fmt.Fprintf(os.Stderr, "Listing refs in %v - command: %v\n", repo, command)
+	if len(command) == 1 && command[0] == "for-push" {
 		fmt.Fprintf(os.Stderr, "Treating for-push the same as a regular list\n")
-	} else if len(args) > 0 {
-		return fmt.Errorf("Bad list request: %v", args)
+	} else if len(command) > 0 {
+		return fmt.Errorf("Bad list request: %v", command)
 	}
 
-	// repo, _, err := r.initRepoIfNeeded(ctx, gitCmdList)
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// refs, err := repo.References()
-	// if err != nil {
-	// 	return err
-	// }
-	//
-	// var symRefs []string
-	// hashesSeen := false
-	// for {
-	// 	ref, err := refs.Next()
-	// 	if errors.Cause(err) == io.EOF {
-	// 		break
-	// 	}
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	//
-	// 	value := ""
-	// 	switch ref.Type() {
-	// 	case plumbing.HashReference:
-	// 		value = ref.Hash().String()
-	// 		hashesSeen = true
-	// 	case plumbing.SymbolicReference:
-	// 		value = "@" + ref.Target().String()
-	// 	default:
-	// 		value = "?"
-	// 	}
-	// 	refStr := value + " " + ref.Name().String() + "\n"
-	// 	if ref.Type() == plumbing.SymbolicReference {
-	// 		// Don't list any symbolic references until we're sure
-	// 		// there's at least one object available.  Otherwise
-	// 		// cloning an empty repo will result in an error because
-	// 		// the HEAD symbolic ref points to a ref that doesn't
-	// 		// exist.
-	// 		symRefs = append(symRefs, refStr)
-	// 		continue
-	// 	}
-	// 	r.log.CDebugf(ctx, "Listing ref %s", refStr)
-	// 	_, err = r.output.Write([]byte(refStr))
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-	//
-	// if hashesSeen {
-	// 	for _, refStr := range symRefs {
-	// 		r.log.CDebugf(ctx, "Listing symbolic ref %s", refStr)
-	// 		_, err = r.output.Write([]byte(refStr))
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 	}
-	// }
-	//
-	// err = r.waitForJournal(ctx)
-	// if err != nil {
-	// 	return err
-	// }
-	// r.log.CDebugf(ctx, "Done waiting for journal")
-	//
-	// _, err = r.output.Write([]byte("\n"))
-	// return err
+	// TODO: Ask gitservicecli to query for refs in repo
+	// TODO: Print refs got from gitservicecli
+
 	fmt.Printf("\n")
 	return nil
 }
 
+type repository struct {
+	chainID string
+	owner string
+	name string
+}
+
+func (r repository) String() string {
+	return fmt.Sprintf("%v/%v/%v", r.chainID, r.owner, r.name)
+}
+
 func cmdRoot(_ *cobra.Command, args []string) error {
-	fmt.Fprintf(os.Stderr, "Starting\n")
+	var url string
+	if (len(args) == 1) {
+		url = args[0]
+	} else {
+		url = args[1]
+	}
+	var m []string
+	if m = reJoystreamURL.FindStringSubmatch(url); m == nil {
+		return fmt.Errorf("URL on invalid format: '%v'", url)
+	}
+	repo := repository{chainID: m[1], owner: m[2], name: m[3],}
+
+	fmt.Fprintf(os.Stderr, "Starting, repo: %v/%v/%v\n", repo.chainID, repo.owner, repo.name)
 
 	var pushBatch [][]string
 	reader := bufio.NewReader(os.Stdin)
@@ -208,7 +171,7 @@ func cmdRoot(_ *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Received a blank line, command terminated\n")
 			if len(pushBatch) > 0 {
 				fmt.Fprintf(os.Stderr, "Processing push batch\n")
-				if err := handlePushBatch(pushBatch); err != nil {
+				if err := handlePushBatch(pushBatch, repo); err != nil {
 					return err
 				}
 
@@ -220,7 +183,7 @@ func cmdRoot(_ *cobra.Command, args []string) error {
 			case "capabilities":
 				fmt.Printf("push\n\n")
 			case "list":
-				handleList(commandParts[1:])
+				handleList(repo, commandParts[1:])
 			case "push":
 				fmt.Fprintf(os.Stderr, "Pushing - args: %v, %v\n", args[0], args[1])
 				pushBatch = append(pushBatch, commandParts[1:])
@@ -243,7 +206,7 @@ func main() {
 		Use:   "git-remote-joystream repository [URL]",
 		Short: "Git remote helper for joystream blockchain",
 		Args:	 cobra.RangeArgs(1, 2),
-		RunE: 	cmdRoot,
+		RunE:  cmdRoot,
 	}
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalf("Unrecoverable error: %v\n", err)

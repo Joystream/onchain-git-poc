@@ -28,8 +28,7 @@ import (
 	tmtypes "github.com/tendermint/tendermint/types"
 )
 
-// DefaultNodeHome sets the folder where the applcation data and configuration will be stored
-var DefaultNodeHome = os.ExpandEnv("$HOME/.nsd")
+var defaultNodeHome = os.ExpandEnv("$HOME/.gitserviced")
 
 const (
 	flagOverwrite = "overwrite"
@@ -42,8 +41,8 @@ func main() {
 	ctx := server.NewDefaultContext()
 
 	rootCmd := &cobra.Command{
-		Use:               "nsd",
-		Short:             "nameservice App Daemon (server)",
+		Use:               "gitserviced",
+		Short:             "gitService App Daemon (server)",
 		PersistentPreRunE: server.PersistentPreRunEFn(ctx),
 	}
 
@@ -52,22 +51,20 @@ func main() {
 
 	server.AddCommands(ctx, cdc, rootCmd, newApp, exportAppStateAndTMValidators)
 
-	// prepare and add flags
-	executor := cli.PrepareBaseCmd(rootCmd, "NS", DefaultNodeHome)
+	executor := cli.PrepareBaseCmd(rootCmd, "GITSERVICE", defaultNodeHome)
 	err := executor.Execute()
 	if err != nil {
-		// handle with #870
 		panic(err)
 	}
 }
 
 func newApp(logger log.Logger, db dbm.DB, traceStore io.Writer) abci.Application {
-	return app.NewNameserviceApp(logger, db)
+	return app.NewGitServiceApp(logger, db)
 }
 
 func exportAppStateAndTMValidators(logger log.Logger, db dbm.DB, _ io.Writer, _ int64, _ bool) (
 	json.RawMessage, []tmtypes.GenesisValidator, error) {
-	dapp := app.NewNameserviceApp(logger, db)
+	dapp := app.NewGitServiceApp(logger, db)
 	return dapp.ExportAppStateAndValidators()
 }
 
@@ -115,12 +112,13 @@ func InitCmd(ctx *server.Context, cdc *codec.Codec) *cobra.Command {
 
 			cfg.WriteConfigFile(filepath.Join(config.RootDir, "config", "config.toml"), config)
 
-			fmt.Printf("Initialized nsd configuration and bootstrapping files in %s...\n", viper.GetString(cli.HomeFlag))
+			fmt.Printf("Initialized gitserviced configuration and bootstrapping files in %s...\n",
+				viper.GetString(cli.HomeFlag))
 			return nil
 		},
 	}
 
-	cmd.Flags().String(cli.HomeFlag, DefaultNodeHome, "node's home directory")
+	cmd.Flags().String(cli.HomeFlag, defaultNodeHome, "node's home directory")
 	cmd.Flags().String(client.FlagChainID, "", "genesis file chain-id, if left blank will be randomly created")
 	cmd.Flags().BoolP(flagOverwrite, "o", false, "overwrite the genesis.json file")
 
