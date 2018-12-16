@@ -2,14 +2,18 @@
 
 ## Write Pushed Git Data to Cosmos Store
 1. helper: Receive request to list refs from Git
-2. helper: Send request to gitservicecli to query refs in repo
+2. helper: Send request to gitservicecli to query refs in repo, chain ID being the first component
+  of the URL
 3. cli: Get refs in remote repo - create repo if it doesn't exist
 4. cli: Write refs to terminal
 5. helper: Read refs from cli output
 6. helper: Write refs to terminal
 7. helper: Receive request to push refs to remote
-8. helper: Send request to gitservicecli to write refs to repo
-9. cli: Write refs from local repo to blockchain
+8. helper: Send request to gitservicecli to write refs to repo, chain ID being the first URL
+  component
+9. cli: Get data corresponding to refs from local repo
+10. cli: Write refs and corresponding data to server
+11. server: Write refs/corresponding data to blockchain
 
 Client must tell server to store data. How do we get the data to the server? Stream it
 from local storage?
