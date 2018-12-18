@@ -6,5 +6,5 @@ import (
 
 // RegisterCodec registers concrete types on wire codec
 func RegisterCodec(cdc *codec.Codec) {
-	cdc.RegisterConcrete(MsgPush{}, "gitService/Push", nil)
+	cdc.RegisterConcrete(MsgPushRef{}, "gitService/PushRef", nil)
 }

@@ -21,10 +21,10 @@ func (k Keeper) ListRefs(ctx sdk.Context, repository string, url string) []strin
 	return []string{}
 }
 
-// PushRefs - push a set of batches of refs
-func (k Keeper) PushRefs(ctx sdk.Context, repository string, url string, pushBatches [][]string) sdk.Error {
+// PushRef - push a Git ref
+func (k Keeper) PushRef(ctx sdk.Context, uri string, ref string, owner sdk.AccAddress) sdk.Error {
 	// store := ctx.KVStore(k.gitStoreKey)
-	// TODO: Store refs
+	// TODO: Store ref
 	return nil
 }
 

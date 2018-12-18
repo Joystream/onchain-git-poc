@@ -90,5 +90,7 @@ func txCmd(cdc *amino.Codec, mc sdk.ModuleClients) *cobra.Command {
 		client.LineBreak,
 	)
 
+	txCmd.AddCommand(mc.GetTxCmd())
+
 	return txCmd
 }

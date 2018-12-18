@@ -41,5 +41,9 @@ func (mc ModuleClient) GetTxCmd() *cobra.Command {
 		Short: "GitService transaction commands",
 	}
 
+	govTxCmd.AddCommand(client.PostCommands(
+		gitServiceCmd.GetCmdPushRefs(mc.cdc),
+	)...)
+
 	return govTxCmd
 }
