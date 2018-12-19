@@ -1,9 +1,11 @@
 package cli
 
 import (
+	stdContext "context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"github.com/pkg/errors"
 
 	"github.com/spf13/cobra"
 	"github.com/cosmos/cosmos-sdk/client/context"
@@ -14,6 +16,7 @@ import (
 	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 	"gopkg.in/src-d/go-git.v4/plumbing/cache"
 	"gopkg.in/src-d/go-git.v4/plumbing"
+	gogit "gopkg.in/src-d/go-git.v4"
 	gogitobj "gopkg.in/src-d/go-git.v4/plumbing/object"
 	gogitstor "gopkg.in/src-d/go-git.v4/plumbing/storer"
 	gogitcfg "gopkg.in/src-d/go-git.v4/config"
@@ -23,11 +26,87 @@ import (
 
 const (
 	maxCommitsToVisitPerRef = 20
+	localRepoRemoteName = "local"
 )
 
 type refData struct {
 	IsDelete bool
 	Commits  []*gogitobj.Commit
+}
+
+func realPush(ctx stdContext.Context, refSpec gogitcfg.RefSpec, repo *gogit.Repository,
+		localRepoPath string, localStorage *filesystem.Storage) error {
+	fmt.Fprintf(os.Stderr, "Creating remote representing local repo %v\n", localRepoPath)
+	remote, err := repo.CreateRemote(&gogitcfg.RemoteConfig{
+		Name: localRepoRemoteName,
+		URLs: []string{localRepoPath},
+	})
+	if err != nil && err != gogit.ErrRemoteExists {
+		return err
+	}
+	if err == gogit.ErrRemoteExists {
+		remote, err = repo.Remote(localRepoRemoteName)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Delete the reference in the repo if needed; otherwise, push from the local repo into the
+	// remote repo.
+	if refSpec.IsDelete() {
+		if refSpec.IsWildcard() {
+			return errors.Errorf("Wildcards not supported for deletes: %s", refSpec)
+		}
+
+		// Remove remote reference
+		fmt.Fprintf(os.Stderr, "Removing remote reference %v\n", refSpec.Dst(""))
+		// err := repo.Storer.RemoveReference(dst)
+		// if err == gogit.NoErrAlreadyUpToDate {
+		// 	err = nil
+		// }
+		// results[dst.String()] = err
+		return nil
+	}
+
+	// if kbfsRepoEmpty {
+	// 	r.log.CDebugf(
+	// 		ctx, "Requesting a pack-refs file for %d refs", len(refspecs))
+	// }
+
+	localRefName, err := resolveLocalRef(refSpec, localStorage)
+	if err != nil {
+		return err
+	}
+
+	resolvedRefSpec := gogitcfg.RefSpec(fmt.Sprintf("%s:%s", localRefName, refSpec.Dst("")))
+	fmt.Fprintf(os.Stderr, "Fetching from local repo into remote one, refSpec: %v\n",
+		resolvedRefSpec)
+	err = remote.FetchContext(ctx, &gogit.FetchOptions{
+		RemoteName: localRepoRemoteName,
+		RefSpecs:   []gogitcfg.RefSpec{resolvedRefSpec,},
+	})
+	if err != nil && err != gogit.NoErrAlreadyUpToDate {
+		return errors.Errorf("Fetch operation into remote failed: %v", err)
+	}
+
+	return nil
+}
+
+func resolveLocalRef(refSpec gogitcfg.RefSpec, localStorage *filesystem.Storage) (
+		*plumbing.ReferenceName, error) {
+	refName := plumbing.ReferenceName(refSpec.Src())
+	fmt.Fprintf(os.Stderr, "Resolving reference %v in local repo\n", refName)
+	resolved, err := gogitstor.ResolveReference(localStorage, refName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error resolving ref %s\n", refName)
+		return nil, err
+	}
+	if resolved != nil {
+		refName = resolved.Name()
+		fmt.Fprintf(os.Stderr, "Resolved local reference to %v\n", refName)
+	}
+
+	return &refName, nil
 }
 
 func getParentCommitsForRef(refSpec gogitcfg.RefSpec, localStorage *filesystem.Storage,
@@ -40,19 +119,13 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, localStorage *filesystem.S
 		return rd, nil
 	}
 
-	refName := plumbing.ReferenceName(refSpec.Src())
-	fmt.Fprintf(os.Stderr, "Resolving reference %v in local repo\n", refName)
-	resolved, err := gogitstor.ResolveReference(localStorage, refName)
+	refName, err := resolveLocalRef(refSpec, localStorage)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving ref %s\n", refName)
-	}
-	if resolved != nil {
-		refName = resolved.Name()
-		fmt.Fprintf(os.Stderr, "Resolved local reference to %v\n", refName)
+		return nil, err
 	}
 
 	fmt.Fprintf(os.Stderr, "Getting local reference %v\n", refName)
-	ref, err := localStorage.Reference(refName)
+	ref, err := localStorage.Reference(*refName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error getting reference %v: %+v", refName, err)
 		return nil, err
@@ -108,9 +181,34 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, localStorage *filesystem.S
 	return rd, nil
 }
 
-func pushRef(uri string, ref string, txBldr authtxb.TxBuilder, cliCtx context.CLIContext,
+func initRepoIfNeeded() (*gogit.Repository, error) {
+	storage, err := newGitConfigStorer()
+	if err != nil {
+		return nil, err
+	}
+
+	repo, err := gogit.Init(storage, nil)
+	if err == gogit.ErrRepositoryAlreadyExists {
+		repo, err = gogit.Open(storage, nil)
+		fmt.Fprintf(os.Stderr, "Opened remote repo\n")
+	} else {
+		fmt.Fprintf(os.Stderr, "Initialized remote repo\n")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return repo, nil
+}
+
+func pushRef(ctx stdContext.Context, uri string, ref string, txBldr authtxb.TxBuilder, cliCtx context.CLIContext,
 		account sdk.AccAddress) error {
-	fmt.Fprintf(os.Stderr, "Reading ref %v from local Git repo\n", ref)
+	fmt.Fprintf(os.Stderr, "Pushing ref '%v' from local to remote Git repo\n", ref)
+
+	repo, err := initRepoIfNeeded()
+	if err != nil {
+		return err
+	}
 
 	// TODO: Support getting repo dir from user
 	localRepoPath, err := filepath.Abs(".git")
@@ -123,6 +221,10 @@ func pushRef(uri string, ref string, txBldr authtxb.TxBuilder, cliCtx context.CL
 	// Get all commits associated with the refs. This must happen before the
 	// push for us to be able to calculate the difference.
 	refSpec := gogitcfg.RefSpec(ref)
+	if err = refSpec.Validate(); err != nil {
+		return err
+	}
+
 	rd, err := getParentCommitsForRef(refSpec, localStorage)
 	if err != nil {
 		return err
@@ -143,11 +245,11 @@ func pushRef(uri string, ref string, txBldr authtxb.TxBuilder, cliCtx context.CL
 	// 		results[dst] = err
 	// 	}
 	// } else {
-	// err = pushSome(ctx, repo, fs, args, kbfsRepoEmpty)
+	err = realPush(ctx, refSpec, repo, localRepoPath, localStorage)
 	// }
-	// if err != nil {
-	// 	return nil, err
-	// }
+	if err != nil {
+		return err
+	}
 
 	// err = r.waitForJournal(ctx)
 	// if err != nil {
@@ -223,8 +325,9 @@ func GetCmdPushRefs(cdc *codec.Codec) *cobra.Command {
 
 			uri := args[0]
 			txBldr := authtxb.NewTxBuilderFromCLI().WithCodec(cdc)
+			ctx := stdContext.Background()
 			for _, ref := range args[1:] {
-				if err := pushRef(uri, ref, txBldr, cliCtx, account); err != nil {
+				if err := pushRef(ctx, uri, ref, txBldr, cliCtx, account); err != nil {
 					return err
 				}
 			}

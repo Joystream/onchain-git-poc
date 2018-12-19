@@ -285,6 +285,14 @@
   revision = "c42d9e0ca023e2198120196f842701bb4c55d7b9"
 
 [[projects]]
+  digest = "1:ae5f4d0779a45e2cb3075d8b3ece6c623e171407f4aac83521392ff06d188871"
+  name = "github.com/kevinburke/ssh_config"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "81db2a75821ed34e682567d48be488a1c3121088"
+  version = "0.5"
+
+[[projects]]
   branch = "master"
   digest = "1:a64e323dc06b73892e5bb5d040ced475c4645d456038333883f58934abbf6f72"
   name = "github.com/kr/logfmt"
@@ -317,12 +325,28 @@
   version = "v1.0.1"
 
 [[projects]]
+  digest = "1:78bbb1ba5b7c3f2ed0ea1eab57bdd3859aec7e177811563edc41198a760b06af"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "ae18d6b8b3205b561c79e8e5f69bff09736185f4"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:53bc4cd4914cd7cd52139990d5170d6dc99067ae31c56530621b18b35fc30318"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   pruneopts = "UT"
   revision = "3536a929edddb9a5b34bd6861dc4a9647cb459fe"
   version = "v1.1.2"
+
+[[projects]]
+  digest = "1:b2ee62e09bec113cf086d2ce0769efcc7bf79481aba8373fd8f7884e94df3462"
+  name = "github.com/pelletier/go-buffruneio"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c37440a7cf42ac63b919c752ca73a85067e05992"
+  version = "v0.2.0"
 
 [[projects]]
   digest = "1:95741de3af260a92cc5c7f3f3061e85273f5a81b5db20d4bd68da74bd521675e"
@@ -605,6 +629,14 @@
   version = "v0.27.0"
 
 [[projects]]
+  digest = "1:afc0b8068986a01e2d8f449917829753a54f6bd4d1265c2b4ad9cba75560020f"
+  name = "github.com/xanzy/ssh-agent"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "640f0ab560aeb89d523bb6ac322b1244d5c3796c"
+  version = "v0.2.0"
+
+[[projects]]
   digest = "1:a7485b2a69f996923f9d3406a9a853fd8eb31818515e985a830d71f88f6a925b"
   name = "github.com/zondax/ledger-cosmos-go"
   packages = ["."]
@@ -613,7 +645,7 @@
   version = "v0.9.2"
 
 [[projects]]
-  digest = "1:064fd1565a6469530c23e81dad908e5adde4d301eacf9e4212de8f58df1c35f8"
+  digest = "1:7ebc924f4c54d34f7d7f92b43a532d59f149a7c16101bb94cb7202880bcc86f0"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
@@ -638,6 +670,9 @@
     "poly1305",
     "ripemd160",
     "salsa20/salsa",
+    "ssh",
+    "ssh/agent",
+    "ssh/knownhosts",
   ]
   pruneopts = "UT"
   revision = "3764759f34a542a3aef74d6b02e35be7ab893bba"
@@ -743,41 +778,61 @@
   version = "v1.17.0"
 
 [[projects]]
-  digest = "1:85f7103b2e3b13c23c1ebef318678f2dc5db0feec44e0541f5c460e87a72d8ba"
+  digest = "1:866df945fc92cd221d2b384dca7de5f3131a6113b9f72a7a8019ae5046abe828"
   name = "gopkg.in/src-d/go-billy.v4"
   packages = [
     ".",
     "helper/chroot",
     "helper/polyfill",
     "osfs",
+    "util",
   ]
   pruneopts = "UT"
   revision = "982626487c60a5252e7d0b695ca23fb0fa2fd670"
   version = "v4.3.0"
 
 [[projects]]
-  digest = "1:7f16d7cf0d1901b60763c848587188b3159f38d5b2c92d469fc9b06fa074e998"
+  digest = "1:1ea7acba0f88007ecacda272a1414bffb529c2da8dbdac647139d2d1590d8354"
   name = "gopkg.in/src-d/go-git.v4"
   packages = [
+    ".",
     "config",
+    "internal/revision",
     "plumbing",
     "plumbing/cache",
     "plumbing/filemode",
     "plumbing/format/config",
     "plumbing/format/diff",
+    "plumbing/format/gitignore",
     "plumbing/format/idxfile",
     "plumbing/format/index",
     "plumbing/format/objfile",
     "plumbing/format/packfile",
+    "plumbing/format/pktline",
     "plumbing/object",
+    "plumbing/protocol/packp",
+    "plumbing/protocol/packp/capability",
+    "plumbing/protocol/packp/sideband",
+    "plumbing/revlist",
     "plumbing/storer",
+    "plumbing/transport",
+    "plumbing/transport/client",
+    "plumbing/transport/file",
+    "plumbing/transport/git",
+    "plumbing/transport/http",
+    "plumbing/transport/internal/common",
+    "plumbing/transport/server",
+    "plumbing/transport/ssh",
     "storage",
     "storage/filesystem",
     "storage/filesystem/dotgit",
+    "storage/memory",
     "utils/binary",
     "utils/diff",
     "utils/ioutil",
     "utils/merkletrie",
+    "utils/merkletrie/filesystem",
+    "utils/merkletrie/index",
     "utils/merkletrie/internal/frame",
     "utils/merkletrie/noder",
   ]
@@ -820,6 +875,7 @@
     "github.com/cosmos/cosmos-sdk/x/auth/client/cli",
     "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder",
     "github.com/cosmos/cosmos-sdk/x/stake",
+    "github.com/pkg/errors",
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
     "github.com/tendermint/go-amino",
@@ -831,6 +887,7 @@
     "github.com/tendermint/tendermint/libs/log",
     "github.com/tendermint/tendermint/types",
     "gopkg.in/src-d/go-billy.v4/osfs",
+    "gopkg.in/src-d/go-git.v4",
     "gopkg.in/src-d/go-git.v4/config",
     "gopkg.in/src-d/go-git.v4/plumbing",
     "gopkg.in/src-d/go-git.v4/plumbing/cache",
