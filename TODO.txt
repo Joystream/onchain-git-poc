@@ -11,8 +11,9 @@
 7. helper: Receive request to push refs to remote
 8. helper: Send request to gitservicecli to write refs to repo, chain ID being the first URL
   component
-9. cli: Get data corresponding to refs from local repo
-10. cli: Write refs and corresponding data to server
+9. cli: Create a go-git repository object for the remote
+10. cli: Add a go-git remote pointing to the local repository to the remote repository
+11. cli: Have remote object (pointing to local repo) fetch refs into remote repo;
 11. server: Write refs/corresponding data to blockchain
 
 Client must tell server to store data. How do we get the data to the server? Stream it
