@@ -1,16 +1,24 @@
 # Requirements for On-Chain Git POC
 Requirements for on-chain Git proof of concept, as use cases.
 
-## Add Remote
+## Push to Uninitialized Repository
 Given that the user is in a local repository
-When the user adds a repository on the blockchain as a remote
-Then the remote should be added to the local repository
+When the user pushes their master branch to a Joystream repository that doesn't exist
+Then the corresponding repository should be created on the Joystream blockchain
+And the commit history of the local master branch should be written to the remote repository
+And a master branch should be created in the remote repository referencing the same commit
+as the local one
 
-## Push to Existent Remote
+## Push to Initialized Repository One Commit Behind
 Given that the user is in a local repository
-And the local repository has a remote on the blockchain
-And the repository exists on the blockchain
-When the user pushes their master branch to the remote
-Then the master branch of the repository on the blockchain should be in sync with the local one
+When the user pushes their master branch to a Joystream repository that already exists
+and has a master branch one commit behind the local one
+Then the master branch of the aforementioned remote repository should be brought up to date with
+the local one
 
-## Fetch from Remote
+## Fetch from Remote Repository One Commit Ahead
+Given that the user is in a local repository
+And has checked out the master branch
+When the user pulls the master branch of a Joystream repository which is one commit ahead of the
+local one
+Then the master branch of the local repository should be brought up to date with the remote one

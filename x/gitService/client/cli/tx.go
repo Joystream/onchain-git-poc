@@ -6,26 +6,26 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/spf13/cobra"
 	"github.com/cosmos/cosmos-sdk/client/context"
+	"github.com/spf13/cobra"
 	// "github.com/cosmos/cosmos-sdk/client/utils"
 	"github.com/cosmos/cosmos-sdk/codec"
 	// "github.com/joystream/onchain-git-poc/x/gitService"
-	"gopkg.in/src-d/go-billy.v4/osfs"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-git.v4/plumbing"
-	gogit "gopkg.in/src-d/go-git.v4"
-	gogitobj "gopkg.in/src-d/go-git.v4/plumbing/object"
-	gogitstor "gopkg.in/src-d/go-git.v4/plumbing/storer"
-	gogitcfg "gopkg.in/src-d/go-git.v4/config"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
+	"gopkg.in/src-d/go-billy.v4/osfs"
+	gogit "gopkg.in/src-d/go-git.v4"
+	gogitcfg "gopkg.in/src-d/go-git.v4/config"
+	"gopkg.in/src-d/go-git.v4/plumbing"
+	"gopkg.in/src-d/go-git.v4/plumbing/cache"
+	gogitobj "gopkg.in/src-d/go-git.v4/plumbing/object"
+	gogitstor "gopkg.in/src-d/go-git.v4/plumbing/storer"
+	"gopkg.in/src-d/go-git.v4/storage/filesystem"
 )
 
 const (
 	maxCommitsToVisitPerRef = 20
-	localRepoRemoteName = "local"
+	localRepoRemoteName     = "local"
 )
 
 type refData struct {
@@ -34,14 +34,14 @@ type refData struct {
 }
 
 func realPush(ctx stdContext.Context, refSpec gogitcfg.RefSpec, repo *gogit.Repository,
-		localRepoPath string, localStorage *filesystem.Storage) error {
-
+	localRepoPath string, localStorage *filesystem.Storage) error {
 
 	return nil
 }
 
 func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
-		/*, remoteStorer gogitstor.Storer*/) (*refData, error) {
+
+/*, remoteStorer gogitstor.Storer*/) (*refData, error) {
 	var rd *refData
 	if refSpec.IsDelete() {
 		rd = &refData{
@@ -92,7 +92,7 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 		if toVisit == 0 {
 			// Append a sentinel value to communicate that there would be
 			// more commits.
-		rd.Commits = append(rd.Commits, nil)
+			rd.Commits = append(rd.Commits, nil)
 			return gogitstor.ErrStop
 		}
 		// TODO: Stop if object (as represented by hash) exists in remote repo
@@ -113,8 +113,8 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 }
 
 func pushRef(ctx stdContext.Context, uri string, ref string, txBldr authtxb.TxBuilder,
-		cliCtx context.CLIContext, account sdk.AccAddress) error {
-	fmt.Fprintf(os.Stderr, "Pushing ref '%v' from local to remote Git repo\n", ref)
+	cliCtx context.CLIContext, account sdk.AccAddress) error {
+	fmt.Fprintf(os.Stderr, "Pushing ref '%s' from local to blockchain repo '%s'\n", ref, uri)
 
 	// TODO: Support getting repo dir from user
 	localRepoPath, err := filepath.Abs(".git")

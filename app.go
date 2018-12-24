@@ -3,23 +3,23 @@ package app
 import (
 	"encoding/json"
 
+	"github.com/joystream/onchain-git-poc/x/gitService"
 	"github.com/tendermint/tendermint/libs/log"
+	"github.com/tendermint/tendermint/types"
 
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/x/auth"
 	"github.com/cosmos/cosmos-sdk/x/stake"
-	"github.com/joystream/onchain-git-poc/x/gitService"
 
 	bam "github.com/cosmos/cosmos-sdk/baseapp"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	abci "github.com/tendermint/tendermint/abci/types"
 	cmn "github.com/tendermint/tendermint/libs/common"
 	dbm "github.com/tendermint/tendermint/libs/db"
-	tmtypes "github.com/tendermint/tendermint/types"
 )
 
 const (
-    appName = "gitService"
+	appName = "gitService"
 )
 
 // GitServiceApp is the main type
@@ -29,7 +29,7 @@ type GitServiceApp struct {
 
 	keyMain          *sdk.KVStoreKey
 	keyAccount       *sdk.KVStoreKey
-	keyGit      		 *sdk.KVStoreKey
+	keyGit           *sdk.KVStoreKey
 	keyFeeCollection *sdk.KVStoreKey
 
 	accountKeeper       auth.AccountKeeper
@@ -48,7 +48,7 @@ func NewGitServiceApp(logger log.Logger, db dbm.DB) *GitServiceApp {
 
 		keyMain:          sdk.NewKVStoreKey("main"),
 		keyAccount:       sdk.NewKVStoreKey("acc"),
-		keyGit:       		sdk.NewKVStoreKey("git"),
+		keyGit:           sdk.NewKVStoreKey("git"),
 		keyFeeCollection: sdk.NewKVStoreKey("fee_collection"),
 	}
 
@@ -111,7 +111,7 @@ func (app *GitServiceApp) initChainer(ctx sdk.Context, req abci.RequestInitChain
 
 // ExportAppStateAndValidators does the things
 func (app *GitServiceApp) ExportAppStateAndValidators() (appState json.RawMessage,
-		validators []tmtypes.GenesisValidator, err error) {
+	validators []types.GenesisValidator, err error) {
 	ctx := app.NewContext(true, abci.Header{})
 	accounts := []*auth.BaseAccount{}
 
