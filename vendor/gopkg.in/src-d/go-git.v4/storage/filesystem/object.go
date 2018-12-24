@@ -1,6 +1,7 @@
 package filesystem
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -89,6 +90,7 @@ func (s *ObjectStorage) NewEncodedObject() plumbing.EncodedObject {
 }
 
 func (s *ObjectStorage) PackfileWriter() (io.WriteCloser, error) {
+	fmt.Fprintf(os.Stderr, "ObjectStorage.PackfileWriter called\n")
 	if err := s.requireIndex(); err != nil {
 		return nil, err
 	}

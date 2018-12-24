@@ -2,7 +2,9 @@ package packfile
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/storer"
@@ -45,12 +47,14 @@ func WritePackfileToObjectStorage(
 	sw storer.PackfileWriter,
 	packfile io.Reader,
 ) (err error) {
+	fmt.Fprintf(os.Stderr, "Using storer's PackfileWriter method\n")
 	w, err := sw.PackfileWriter()
 	if err != nil {
 		return err
 	}
 
 	defer ioutil.CheckClose(w, &err)
+	fmt.Fprintf(os.Stderr, "Copying packfile to storer's packfile writer\n")
 	_, err = io.Copy(w, packfile)
 	return err
 }

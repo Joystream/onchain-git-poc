@@ -100,6 +100,7 @@ func (p *Parser) forEachObserver(f func(o Observer) error) error {
 
 func (p *Parser) onHeader(count uint32) error {
 	return p.forEachObserver(func(o Observer) error {
+		// fmt.Fprintf(os.Stderr, "Calling onHeader of observer %v\n", o)
 		return o.OnHeader(count)
 	})
 }
@@ -148,6 +149,7 @@ func (p *Parser) Parse() (plumbing.Hash, error) {
 		return plumbing.ZeroHash, err
 	}
 
+	fmt.Fprintf(os.Stderr, "Parser - The packfile checksum is %s\n", p.checksum)
 	if err := p.resolveDeltas(); err != nil {
 		return plumbing.ZeroHash, err
 	}
@@ -193,7 +195,7 @@ func (p *Parser) indexObjects() error {
 		var ota *objectInfo
 		switch t := oh.Type; t {
 		case plumbing.OFSDeltaObject:
-			fmt.Fprintf(os.Stderr, "Encountered OFSDeltaObject\n")
+			fmt.Fprintf(os.Stderr, "Parser encountered OFSDeltaObject\n")
 			delta = true
 
 			parent, ok := p.oiByOffset[oh.OffsetReference]
@@ -201,15 +203,16 @@ func (p *Parser) indexObjects() error {
 				return plumbing.ErrObjectNotFound
 			}
 
-			fmt.Fprintf(os.Stderr, "Parent: %v\n", parent)
+			fmt.Fprintf(os.Stderr, "Parser - Parent object hash: %s\n", parent.SHA1)
 			ota = newDeltaObject(oh.Offset, oh.Length, t, parent)
+			fmt.Fprintf(os.Stderr, "Parser appending delta object to parent's children\n")
 			parent.Children = append(parent.Children, ota)
 		case plumbing.REFDeltaObject:
-			fmt.Fprintf(os.Stderr, "Encountered REFDeltaObject\n")
+			fmt.Fprintf(os.Stderr, "Parser encountered REFDeltaObject\n")
 			delta = true
 			parent, ok := p.oiByHash[oh.Reference]
-			fmt.Fprintf(os.Stderr, "Parent: %v\n", parent)
 			if !ok {
+				fmt.Fprintf(os.Stderr, "Parser - Parent hash: %s, external reference\n", parent.SHA1)
 				// can't find referenced object in this pack file
 				// this must be a "thin" pack.
 				parent = &objectInfo{ //Placeholder parent
@@ -219,12 +222,16 @@ func (p *Parser) indexObjects() error {
 					DiskType:    plumbing.AnyObject,
 				}
 				p.oiByHash[oh.Reference] = parent
+			} else {
+				fmt.Fprintf(os.Stderr, "Parser - Parent hash: %s\n", parent.SHA1)
 			}
+
 			ota = newDeltaObject(oh.Offset, oh.Length, t, parent)
+			fmt.Fprintf(os.Stderr, "Parser appending delta object to parent's children\n")
 			parent.Children = append(parent.Children, ota)
 
 		default:
-			fmt.Fprintf(os.Stderr, "Encountered base object\n")
+			fmt.Fprintf(os.Stderr, "Parser encountered base object\n")
 			ota = newBaseObject(oh.Offset, oh.Length, t)
 		}
 
@@ -236,9 +243,11 @@ func (p *Parser) indexObjects() error {
 		ota.Crc32 = crc
 		ota.Length = oh.Length
 
+		fmt.Fprintf(os.Stderr, "Parser finished getting object bytes\n")
 		data := buf.Bytes()
 		if !delta {
 			sha1, err := getSHA1(ota.Type, data)
+			fmt.Fprintf(os.Stderr, "Parser - This is not a delta object, its hash is %s\n", sha1)
 			if err != nil {
 				return err
 			}
@@ -248,45 +257,51 @@ func (p *Parser) indexObjects() error {
 		}
 
 		if p.storage != nil && !delta {
-			fmt.Fprintf(os.Stderr, "Writing object of type %s to storage: %s\n", oh.Type, oh.Reference)
+			fmt.Fprintf(os.Stderr, "Parser writing object of type %s to storage: %s\n", ota.Type, ota.SHA1)
 			obj := new(plumbing.MemoryObject)
 			obj.SetSize(oh.Length)
 			obj.SetType(oh.Type)
 			if _, err := obj.Write(data); err != nil {
-				fmt.Fprintf(os.Stderr, "Writing data to object failed: %s\n", err)
+				fmt.Fprintf(os.Stderr, "Parser writing data to memory object failed: %s\n", err)
 				return err
 			}
 
+			fmt.Fprintf(os.Stderr, "Parser writing object to storage\n")
 			if _, err := p.storage.SetEncodedObject(obj); err != nil {
-				fmt.Fprintf(os.Stderr, "Writing object to storage failed: %s\n", err)
+				fmt.Fprintf(os.Stderr, "Parser writing object to storage failed: %s\n", err)
 				return err
 			}
 		} else if delta {
-			fmt.Fprintf(os.Stderr, "Not writing object to storage because it's a delta\n")
+			fmt.Fprintf(os.Stderr, "Parser not writing object to storage because it's a delta\n")
 		} else {
-			fmt.Fprintf(os.Stderr, "Not writing object to storage because there is no storage\n")
+			fmt.Fprintf(os.Stderr, "Parser not writing object to storage because there is no storage\n")
 		}
 
 		if delta && !p.scanner.IsSeekable {
+			fmt.Fprintf(os.Stderr, "Parser - scanner isn't seekable, copying data into p.deltas[%d]\n",
+				oh.Offset)
 			p.deltas[oh.Offset] = make([]byte, len(data))
 			copy(p.deltas[oh.Offset], data)
 		}
 
+		fmt.Fprintf(os.Stderr, "Parser registering object info at p.oiByOffset[%d] and p.oi[%d]\n",
+			oh.Offset, i)
 		p.oiByOffset[oh.Offset] = ota
 		p.oi[i] = ota
 	}
 
-	fmt.Fprintf(os.Stderr, "Finished indexing objects\n")
+	fmt.Fprintf(os.Stderr, "Parser finished indexing objects\n")
 	return nil
 }
 
 func (p *Parser) resolveDeltas() error {
-	fmt.Fprintf(os.Stderr, "Resolving deltas of %d objects\n", len(p.oi))
+	fmt.Fprintf(os.Stderr, "Parser resolving deltas of %d objects\n", len(p.oi))
 	for _, obj := range p.oi {
-		fmt.Fprintf(os.Stderr, "Getting content of object %s (disk type: %s, type: %s)\n", obj.SHA1, obj.DiskType, obj.Type)
+		fmt.Fprintf(os.Stderr, "Parser getting content of object %s (disk type: %s, type: %s)\n",
+			obj.SHA1, obj.DiskType, obj.Type)
 		content, err := p.get(obj)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get content of object %s\n", obj.SHA1)
+			fmt.Fprintf(os.Stderr, "Parser failed to get content of object %s\n", obj.SHA1)
 			return err
 		}
 
@@ -299,6 +314,7 @@ func (p *Parser) resolveDeltas() error {
 		}
 
 		if !obj.IsDelta() && len(obj.Children) > 0 {
+			fmt.Fprintf(os.Stderr, "Parser handling %d children of non-delta object\n", len(obj.Children))
 			for _, child := range obj.Children {
 				if _, err := p.resolveObject(child, content); err != nil {
 					return err
@@ -307,6 +323,7 @@ func (p *Parser) resolveDeltas() error {
 
 			// Remove the delta from the cache.
 			if obj.DiskType.IsDelta() && !p.scanner.IsSeekable {
+				fmt.Fprintf(os.Stderr, "Parser removing object from delta cache\n")
 				delete(p.deltas, obj.Offset)
 			}
 		}
@@ -347,14 +364,14 @@ func (p *Parser) get(o *objectInfo) (b []byte, err error) {
 
 	if o.ExternalRef {
 		// we were not able to resolve a ref in a thin pack
-		fmt.Fprintf(os.Stderr, "Unable to resolve reference delta of object '%s'\n", o.SHA1)
+		fmt.Fprintf(os.Stderr, "Parser unable to resolve reference delta of object '%s'\n", o.SHA1)
 		debug.PrintStack()
 		return nil, ErrReferenceDeltaNotFound
 	}
 
 	var data []byte
 	if o.DiskType.IsDelta() {
-		fmt.Fprintf(os.Stderr, "Getting parent of object %s: %s\n", o.SHA1, o.Parent.SHA1)
+		fmt.Fprintf(os.Stderr, "Parser getting parent of object %s: %s\n", o.SHA1, o.Parent.SHA1)
 		base, err := p.get(o.Parent)
 		if err != nil {
 			return nil, err
@@ -386,6 +403,7 @@ func (p *Parser) resolveObject(
 		return nil, nil
 	}
 
+	fmt.Fprintf(os.Stderr, "Parser resolving delta object with hash %s\n", o.SHA1)
 	data, err := p.readData(o)
 	if err != nil {
 		return nil, err
@@ -404,6 +422,8 @@ func (p *Parser) resolveObject(
 			return nil, err
 		}
 
+		fmt.Fprintf(os.Stderr, "Parser setting patched object in storage; hash: %s, type: %s\n", obj.Hash(),
+			obj.Type())
 		if _, err := p.storage.SetEncodedObject(obj); err != nil {
 			return nil, err
 		}
@@ -439,6 +459,7 @@ func (p *Parser) readData(o *objectInfo) ([]byte, error) {
 }
 
 func applyPatchBase(ota *objectInfo, data, base []byte) ([]byte, error) {
+	fmt.Fprintf(os.Stderr, "Parser applying patch to base for delta object\n")
 	patched, err := PatchDelta(base, data)
 	if err != nil {
 		return nil, err

@@ -9,6 +9,7 @@ import (
 	"hash/crc32"
 	"io"
 	stdioutil "io/ioutil"
+	"os"
 	"sync"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -104,6 +105,8 @@ func (s *Scanner) Header() (version, objects uint32, err error) {
 
 	objects, err = s.readCount()
 	s.objects = objects
+	fmt.Fprintf(os.Stderr, "Scanner read packfile; version: %d, num objects: %d\n", version,
+		objects)
 	return
 }
 
@@ -140,6 +143,7 @@ func (s *Scanner) readCount() (uint32, error) {
 
 // NextObjectHeader returns the ObjectHeader for the next object in the reader
 func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
+	fmt.Fprintf(os.Stderr, "Reading next object header\n")
 	defer s.Flush()
 
 	if err := s.doPending(); err != nil {
@@ -153,6 +157,7 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 
 	var err error
 	h.Offset, err = s.r.Seek(0, io.SeekCurrent)
+	fmt.Fprintf(os.Stderr, "Determined current read offset: %d\n", h.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -164,18 +169,23 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 
 	switch h.Type {
 	case plumbing.OFSDeltaObject:
+		fmt.Fprintf(os.Stderr, "This is an OFSDeltaObject\n")
 		no, err := binary.ReadVariableWidthInt(s.r)
 		if err != nil {
 			return nil, err
 		}
 
 		h.OffsetReference = h.Offset - no
+		fmt.Fprintf(os.Stderr, "Its offset reference is %d\n", h.OffsetReference)
 	case plumbing.REFDeltaObject:
+		fmt.Fprintf(os.Stderr, "This is a REFDeltaObject\n")
 		var err error
 		h.Reference, err = binary.ReadHash(s.r)
 		if err != nil {
 			return nil, err
 		}
+
+		fmt.Fprintf(os.Stderr, "Its reference is %s\n", h.Reference)
 	}
 
 	return h, nil
@@ -199,6 +209,7 @@ func (s *Scanner) discardObjectIfNeeded() error {
 	}
 
 	h := s.pendingObject
+	fmt.Fprintf(os.Stderr, "Discarding pending object %v\n", h)
 	n, _, err := s.NextObject(stdioutil.Discard)
 	if err != nil {
 		return err
@@ -235,6 +246,7 @@ func (s *Scanner) readType() (plumbing.ObjectType, byte, error) {
 	}
 
 	typ := parseType(c)
+	fmt.Fprintf(os.Stderr, "Parsed object type: %s\n", typ)
 
 	return typ, c, nil
 }
@@ -260,10 +272,11 @@ func (s *Scanner) readLength(first byte) (int64, error) {
 		shift += lengthBits
 	}
 
+	fmt.Fprintf(os.Stderr, "Read object length of %d\n", length)
 	return length, nil
 }
 
-// NextObject writes the content of the next object into the reader, returns
+// NextObject writes the content of the next object into the writer, returns
 // the number of bytes written, the CRC32 of the content and an error, if any
 func (s *Scanner) NextObject(w io.Writer) (written int64, crc32 uint32, err error) {
 	defer s.crc.Reset()
@@ -275,8 +288,8 @@ func (s *Scanner) NextObject(w io.Writer) (written int64, crc32 uint32, err erro
 	return
 }
 
-// ReadRegularObject reads and write a non-deltified object
-// from it zlib stream in an object entry in the packfile.
+// copyObject writes a non-deltified object
+// from a zlib stream in an object entry in the packfile.
 func (s *Scanner) copyObject(w io.Writer) (n int64, err error) {
 	if s.zr == nil {
 		var zr io.ReadCloser
@@ -294,6 +307,7 @@ func (s *Scanner) copyObject(w io.Writer) (n int64, err error) {
 
 	defer ioutil.CheckClose(s.zr, &err)
 	buf := byteSlicePool.Get().([]byte)
+	fmt.Fprintf(os.Stderr, "Copying zlib compressed object to writer\n")
 	n, err = io.CopyBuffer(w, s.zr, buf)
 	byteSlicePool.Put(buf)
 	return

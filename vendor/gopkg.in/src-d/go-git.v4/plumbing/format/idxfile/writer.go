@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"sync"
 
@@ -52,6 +53,8 @@ func (w *Writer) Add(h plumbing.Hash, pos uint64, crc uint32) {
 
 	if _, ok := w.added[h]; !ok {
 		w.added[h] = struct{}{}
+		fmt.Fprintf(os.Stderr, "Writer appending object with hash %s to objects property\n",
+			h)
 		w.objects = append(w.objects, Entry{h, crc, pos})
 	}
 
@@ -63,6 +66,7 @@ func (w *Writer) Finished() bool {
 
 // OnHeader implements packfile.Observer interface.
 func (w *Writer) OnHeader(count uint32) error {
+	fmt.Fprintf(os.Stderr, "Writer.OnHeader called with count %d\n", count)
 	w.count = count
 	w.objects = make(objects, 0, count)
 	return nil
@@ -75,6 +79,8 @@ func (w *Writer) OnInflatedObjectHeader(t plumbing.ObjectType, objSize int64, po
 
 // OnInflatedObjectContent implements packfile.Observer interface.
 func (w *Writer) OnInflatedObjectContent(h plumbing.Hash, pos int64, crc uint32, _ []byte) error {
+	fmt.Fprintf(os.Stderr, "Writer.OnInflatedObjectContent called for hash %s, position %d\n", h,
+		pos)
 	w.Add(h, uint64(pos), crc)
 	return nil
 }
@@ -83,6 +89,7 @@ func (w *Writer) OnInflatedObjectContent(h plumbing.Hash, pos int64, crc uint32,
 func (w *Writer) OnFooter(h plumbing.Hash) error {
 	w.checksum = h
 	w.finished = true
+	fmt.Fprintf(os.Stderr, "Writer.OnFooter called\n")
 	_, err := w.createIndex()
 	if err != nil {
 		return err
@@ -91,9 +98,10 @@ func (w *Writer) OnFooter(h plumbing.Hash) error {
 	return nil
 }
 
-// creatIndex returns a filled MemoryIndex with the information filled by
+// createIndex returns a filled MemoryIndex with the information filled by
 // the observer callbacks.
 func (w *Writer) createIndex() (*MemoryIndex, error) {
+	fmt.Fprintf(os.Stderr, "Writer creating index\n")
 	if !w.finished {
 		return nil, fmt.Errorf("the index still hasn't finished building")
 	}
@@ -158,6 +166,7 @@ func (w *Writer) createIndex() (*MemoryIndex, error) {
 	idx.Version = VersionSupported
 	idx.PackfileChecksum = w.checksum
 
+	fmt.Fprintf(os.Stderr, "Writer finished creating index\n")
 	return idx, nil
 }
 
