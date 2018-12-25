@@ -1,15 +1,11 @@
 # TODOs
 
-## Push Reference to Uninitialized Repo on Blockchain
-1. User: Invoke client's push-refs command.
-2. Client: Query server for advertised references in blockchain repo.
-3. Server: Return empty list of advertised references since repo doesn't exist.
-4. Client: Compute reference updates that should take place, taking into account advertised
-   references obtained from server, and packfile containing commit history.
-5. Client: Send `MsgUpdateReferences`, computed during previous step, to server including
-   command to add reference, and also packfile containing commit history.
-6. Server: Decode packfile and store on blockchain.
-7. Server: Add reference on blockchain, pointing to correct commit.
+## Implement Getting of Advertised References
+Implement getting of advertised references from the server, so that we can implement updating
+of references in on-chain repos, and not just pushing new ones.
+
+## Implement Updating of On-Chain Repos
+Implement updating of on-chain repos so that you can update a reference with new commits.
 
 ### Authentication
 We should probably use the auth module in order to implement account handling.
