@@ -115,10 +115,13 @@ func (s *Scanner) Header() (version, objects uint32, err error) {
 // readSignature reads an returns the signature field in the packfile.
 func (s *Scanner) readSignature() ([]byte, error) {
 	var sig = make([]byte, 4)
+	fmt.Fprintf(os.Stderr, "Scanner trying to read packfile signature\n")
 	if _, err := io.ReadFull(s.r, sig); err != nil {
+		fmt.Fprintf(os.Stderr, "Scanner failed to read %d bytes\n", len(sig))
 		return []byte{}, err
 	}
 
+	fmt.Fprintf(os.Stderr, "Scanner successfully read signature: %s\n", sig)
 	return sig, nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	stdioutil "io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -283,6 +284,7 @@ func (s *session) onError(err error) {
 }
 
 func (s *session) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateRequest) (*packp.ReportStatus, error) {
+	fmt.Fprintf(os.Stderr, "ReceivePack invoked\n")
 	if _, err := s.AdvertisedReferences(); err != nil {
 		return nil, err
 	}

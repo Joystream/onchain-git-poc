@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -1018,6 +1019,7 @@ func pushHashes(
 		done <- wr.Close()
 	}()
 
+	fmt.Fprintf(os.Stderr, "Remote calling sess.ReceivePack\n")
 	rs, err := sess.ReceivePack(ctx, req)
 	if err != nil {
 		return nil, err

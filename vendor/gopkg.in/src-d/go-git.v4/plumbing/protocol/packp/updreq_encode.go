@@ -3,6 +3,7 @@ package packp
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/pktline"
@@ -30,6 +31,7 @@ func (r *ReferenceUpdateRequest) Encode(w io.Writer) error {
 	}
 
 	if r.Packfile != nil {
+		fmt.Fprintf(os.Stderr, "ReferenceUpdateRequest encoding packfile to %+v\n", w)
 		if _, err := io.Copy(w, r.Packfile); err != nil {
 			return err
 		}
