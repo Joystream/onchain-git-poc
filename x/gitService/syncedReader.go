@@ -36,7 +36,9 @@ func (s *syncedReader) Write(p []byte) (n int, err error) {
 }
 
 func (s *syncedReader) Read(p []byte) (n int, err error) {
-	defer func() { atomic.AddUint64(&s.read, uint64(n)) }()
+	defer func() {
+		atomic.AddUint64(&s.read, uint64(n))
+	}()
 
 	for {
 		s.sleep()
@@ -71,9 +73,8 @@ func (s *syncedReader) sleep() {
 	written := atomic.LoadUint64(&s.written)
 	if read >= written {
 		atomic.StoreUint32(&s.blocked, 1)
-		<-s.news
+		_ = <-s.news
 	}
-
 }
 
 func (s *syncedReader) Seek(offset int64, whence int) (int64, error) {
