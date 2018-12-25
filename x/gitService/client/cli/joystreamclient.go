@@ -1,79 +1,81 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
-	"path"
 
-	"github.com/pkg/errors"
-	"gopkg.in/src-d/go-billy.v4/osfs"
+	cosmosContext "github.com/cosmos/cosmos-sdk/client/context"
+	"github.com/cosmos/cosmos-sdk/client/utils"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
+	"github.com/joystream/onchain-git-poc/x/gitService"
+
 	"gopkg.in/src-d/go-git.v4/plumbing"
-	"gopkg.in/src-d/go-git.v4/plumbing/cache"
-	"gopkg.in/src-d/go-git.v4/plumbing/format/packfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp"
-	"gopkg.in/src-d/go-git.v4/plumbing/storer"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
-	"gopkg.in/src-d/go-git.v4/storage/filesystem"
-	"gopkg.in/src-d/go-git.v4/utils/ioutil"
 )
 
-type joystreamTransport struct {
+type joystreamClient struct {
+	ep     *transport.Endpoint
+	txBldr authtxb.TxBuilder
+	cliCtx cosmosContext.CLIContext
+	author sdk.AccAddress
 }
 
-func newJoystreamTransport() joystreamTransport {
-	return joystreamTransport{}
+func newJoystreamClient(uri string, cliCtx cosmosContext.CLIContext, txBldr authtxb.TxBuilder,
+	author sdk.AccAddress) (*joystreamClient, error) {
+	url := fmt.Sprintf("joystream://blockchain/%s", uri)
+	ep, err := transport.NewEndpoint(url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create endpoint for URL '%s'\n", url)
+		return nil, err
+	}
+	return &joystreamClient{
+		ep:     ep,
+		txBldr: txBldr,
+		cliCtx: cliCtx,
+		author: author,
+	}, nil
 }
 
-func (*joystreamTransport) NewUploadPackSession(*transport.Endpoint, transport.AuthMethod) (
+func (*joystreamClient) NewUploadPackSession(*transport.Endpoint, transport.AuthMethod) (
 	transport.UploadPackSession, error) {
-	fmt.Fprintf(os.Stderr, "Joystream transport creating UploadPackSession\n")
+	fmt.Fprintf(os.Stderr, "Joystream client creating UploadPackSession\n")
 	return nil, nil
 }
 
 type rpSession struct {
-	storer     storer.Storer
 	authMethod transport.AuthMethod
 	endpoint   *transport.Endpoint
 	advRefs    *packp.AdvRefs
 	cmdStatus  map[plumbing.ReferenceName]error
 	firstErr   error
 	unpackErr  error
+	client     *joystreamClient
 }
 
-func (*joystreamTransport) NewReceivePackSession(ep *transport.Endpoint,
+func (c *joystreamClient) NewReceivePackSession(ep *transport.Endpoint,
 	authMethod transport.AuthMethod) (transport.ReceivePackSession, error) {
-	repoPath := path.Join("/tmp/joystream/", ep.Path, ".git")
-	fmt.Fprintf(os.Stderr,
-		"Joystream transport creating ReceivePackSession, storing at '%s'\n", repoPath)
-	fs := osfs.New(repoPath)
-
-	if _, err := fs.Stat("config"); err != nil {
-		fmt.Fprintf(os.Stderr, "Can't find Git config at '%s'\n", repoPath)
-		return nil, transport.ErrRepositoryNotFound
-	}
-
-	sto := filesystem.NewStorage(fs, cache.NewObjectLRUDefault())
+	fmt.Fprintf(os.Stderr, "Joystream client creating ReceivePackSession\n")
 
 	sess := &rpSession{
 		authMethod: authMethod,
 		endpoint:   ep,
-		storer:     sto,
 		cmdStatus:  map[plumbing.ReferenceName]error{},
+		client:     c,
 	}
 	return sess, nil
 }
 
-func (s *rpSession) advertisedReferences(serviceName string) (ref *packp.AdvRefs, err error) {
-	advRefs := packp.NewAdvRefs()
-	return advRefs, nil
-}
-
 func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
-	fmt.Fprintf(os.Stderr, "Joystream transport getting advertised references\n")
-	advRefs, error := s.advertisedReferences(transport.ReceivePackServiceName)
-	fmt.Fprintf(os.Stderr, "Joystream transport got advertised references: %v\n", advRefs)
-	return advRefs, error
+	fmt.Fprintf(os.Stderr, "Joystream client getting advertised references\n")
+	// Make call to server to get advertised references
+	advRefs := packp.NewAdvRefs()
+	fmt.Fprintf(os.Stderr, "Joystream client got advertised references: %v\n", advRefs)
+	return advRefs, nil
 }
 
 // ReceivePack receives a ReferenceUpdateRequest, with a packfile stream as its Packfile
@@ -82,22 +84,36 @@ func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
 func (s *rpSession) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateRequest) (
 	*packp.ReportStatus, error) {
 
-	fmt.Fprintf(os.Stderr, "Joystream transport sending reference update request to endpoint\n")
+	fmt.Fprintf(os.Stderr, "Joystream client sending reference update request to endpoint\n")
 
 	// TODO: Make references update atomic
 
-	r := ioutil.NewContextReadCloser(ctx, req.Packfile)
-	fmt.Fprintf(os.Stderr, "Updating object storage\n")
-	if err := packfile.UpdateObjectStorage(s.storer, r); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to update object storage: %s\n", err)
-		r.Close()
+	fmt.Fprintf(os.Stderr, "Joystream client encoding packfile...\n")
+	buf := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buf, req.Packfile); err != nil {
+		fmt.Fprintf(os.Stderr, "Joystream client failed to encode packfile: %s\n", err)
+		req.Packfile.Close()
 		return s.reportStatus(), err
 	}
-	if err := r.Close(); err != nil {
+	if err := req.Packfile.Close(); err != nil {
 		return s.reportStatus(), err
 	}
 
-	s.updateReferences(req)
+	msg, err := gitService.NewMsgUpdateReferences(s.endpoint.Path[1:], req, buf.Bytes(), s.client.author)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"Joystream client failed to create MsgUpdateReferences: %s\n", err)
+		return s.reportStatus(), err
+	}
+	fmt.Fprintf(os.Stderr,
+		"Joystream client sending MsgUpdateReferences to server for repo '%s' with %d command(s)\n",
+		msg.URI, len(msg.Commands))
+
+	if err := utils.CompleteAndBroadcastTxCli(s.client.txBldr, s.client.cliCtx,
+		[]sdk.Msg{msg}); err != nil {
+		fmt.Fprintf(os.Stderr, "Sending MsgUpdateReferences to node failed: %s\n", err)
+		return s.reportStatus(), err
+	}
 
 	return s.reportStatus(), nil
 
@@ -159,62 +175,6 @@ func (s *rpSession) setStatus(ref plumbing.ReferenceName, err error) {
 	}
 }
 
-func (s *rpSession) updateReferences(req *packp.ReferenceUpdateRequest) {
-	errUpdateReference := errors.New("failed to update ref")
-
-	fmt.Fprintf(os.Stderr, "Updating references\n")
-	for _, cmd := range req.Commands {
-		exists, err := referenceExists(s.storer, cmd.Name)
-		if err != nil {
-			s.setStatus(cmd.Name, err)
-			continue
-		}
-
-		switch cmd.Action() {
-		case packp.Create:
-			if exists {
-				s.setStatus(cmd.Name, errUpdateReference)
-				continue
-			}
-
-			ref := plumbing.NewHashReference(cmd.Name, cmd.New)
-			err := s.storer.SetReference(ref)
-			s.setStatus(cmd.Name, err)
-		case packp.Delete:
-			if !exists {
-				s.setStatus(cmd.Name, errUpdateReference)
-				continue
-			}
-
-			err := s.storer.RemoveReference(cmd.Name)
-			s.setStatus(cmd.Name, err)
-		case packp.Update:
-			if !exists {
-				s.setStatus(cmd.Name, errUpdateReference)
-				continue
-			}
-
-			if err != nil {
-				s.setStatus(cmd.Name, err)
-				continue
-			}
-
-			ref := plumbing.NewHashReference(cmd.Name, cmd.New)
-			err := s.storer.SetReference(ref)
-			s.setStatus(cmd.Name, err)
-		}
-	}
-}
-
 func (*rpSession) Close() error {
 	return nil
-}
-
-func referenceExists(s storer.ReferenceStorer, n plumbing.ReferenceName) (bool, error) {
-	_, err := s.Reference(n)
-	if err == plumbing.ErrReferenceNotFound {
-		return false, nil
-	}
-
-	return err == nil, err
 }

@@ -9,13 +9,13 @@ import (
 
 // ModuleClient exports all client functionality from this module
 type ModuleClient struct {
-	storeKey string
-	cdc      *amino.Codec
+	moduleName string
+	cdc        *amino.Codec
 }
 
 // NewModuleClient is the ModuleClient constructor
-func NewModuleClient(storeKey string, cdc *amino.Codec) ModuleClient {
-	return ModuleClient{storeKey, cdc}
+func NewModuleClient(moduleName string, cdc *amino.Codec) ModuleClient {
+	return ModuleClient{moduleName, cdc}
 }
 
 // GetQueryCmd returns the cli query commands for this module
@@ -27,7 +27,7 @@ func (mc ModuleClient) GetQueryCmd() *cobra.Command {
 	}
 
 	govQueryCmd.AddCommand(client.GetCommands(
-		gitServiceCmd.GetCmdListRefs(mc.storeKey, mc.cdc),
+		gitServiceCmd.GetCmdListRefs(mc.moduleName, mc.cdc),
 	)...)
 
 	return govQueryCmd
@@ -42,7 +42,7 @@ func (mc ModuleClient) GetTxCmd() *cobra.Command {
 	}
 
 	govTxCmd.AddCommand(client.PostCommands(
-		gitServiceCmd.GetCmdPushRefs(mc.cdc),
+		gitServiceCmd.GetCmdPushRefs(mc.moduleName, mc.cdc),
 	)...)
 
 	return govTxCmd

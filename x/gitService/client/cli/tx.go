@@ -2,15 +2,16 @@ package cli
 
 import (
 	stdContext "context"
+	encJson "encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/spf13/cobra"
+	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp"
 	// "github.com/cosmos/cosmos-sdk/client/utils"
 	"github.com/cosmos/cosmos-sdk/codec"
-	// "github.com/joystream/onchain-git-poc/x/gitService"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
 	"gopkg.in/src-d/go-billy.v4/osfs"
@@ -112,9 +113,9 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 	return rd, nil
 }
 
-func pushRef(ctx stdContext.Context, uri string, ref string, txBldr authtxb.TxBuilder,
-	cliCtx context.CLIContext, account sdk.AccAddress) error {
-	fmt.Fprintf(os.Stderr, "Pushing ref '%s' from local to blockchain repo '%s'\n", ref, uri)
+func pushRefs(ctx stdContext.Context, uri string, refs []string, txBldr authtxb.TxBuilder,
+	cliCtx context.CLIContext, author sdk.AccAddress, advRefs *packp.AdvRefs) error {
+	fmt.Fprintf(os.Stderr, "Pushing refs %v from local to blockchain repo '%s'\n", refs, uri)
 
 	// TODO: Support getting repo dir from user
 	localRepoPath, err := filepath.Abs(".git")
@@ -132,33 +133,17 @@ func pushRef(ctx stdContext.Context, uri string, ref string, txBldr authtxb.TxBu
 
 	// Get all commits associated with the refs. This must happen before the
 	// push for us to be able to calculate the difference.
-	refSpec := gogitcfg.RefSpec(ref)
-	if err = refSpec.Validate(); err != nil {
-		return err
+	refSpecs := make([]gogitcfg.RefSpec, 0, len(refs))
+	for _, ref := range refs {
+		refSpec := gogitcfg.RefSpec(ref)
+		if err = refSpec.Validate(); err != nil {
+			return err
+		}
+
+		refSpecs = append(refSpecs, refSpec)
 	}
 
-	rd, err := getParentCommitsForRef(refSpec, repo)
-	if err != nil {
-		return err
-	}
-
-	fmt.Fprintf(os.Stderr, "Found %v commit(s) for destination reference %v\n",
-		len(rd.Commits), refSpec.Dst(""))
-
-	// var results map[string]error
-	// Ignore pushAll for commit collection, for now.
-	// if canPushAll {
-	// 	err = r.pushAll(ctx, fs)
-	// 	// All refs in the batch get the same error.
-	// 	results = make(map[string]error, len(args))
-	// 	for _, push := range args {
-	// 		// `canPushAll` already validates the push reference.
-	// 		dst := dstNameFromRefString(push[0]).String()
-	// 		results[dst] = err
-	// 	}
-	// } else {
-
-	err = pushToBlockChain(ctx, uri, []gogitcfg.RefSpec{refSpec}, repo)
+	err = pushToBlockChain(ctx, uri, refSpecs, repo, advRefs, cliCtx, txBldr, author)
 	if err != nil {
 		return err
 	}
@@ -218,10 +203,10 @@ func pushRef(ctx stdContext.Context, uri string, ref string, txBldr authtxb.TxBu
 }
 
 // GetCmdPushRefs is the CLI command for pushing Git refs to the blockchain
-func GetCmdPushRefs(cdc *codec.Codec) *cobra.Command {
+func GetCmdPushRefs(moduleName string, cdc *codec.Codec) *cobra.Command {
 	return &cobra.Command{
-		Use:   "push-refs URI ref...",
-		Short: "Push Git refs to a certain URI on the blockchain",
+		Use:   "push-refs repo ref...",
+		Short: "Push Git refs to a certain repository on the blockchain",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Executing CmdPushRefs\n")
@@ -230,18 +215,29 @@ func GetCmdPushRefs(cdc *codec.Codec) *cobra.Command {
 				return err
 			}
 
-			account, err := cliCtx.GetFromAddress()
+			author, err := cliCtx.GetFromAddress()
 			if err != nil {
 				return err
 			}
 
-			uri := args[0]
+			repo := args[0]
+
+			fmt.Fprintf(os.Stderr, "Querying for advertised references in repository '%s'\n", repo)
+			res, err := cliCtx.QueryWithData(fmt.Sprintf("custom/%s/advertisedReferences/%s",
+				moduleName, repo), nil)
+			if err != nil {
+				return err
+			}
+			var advRefs *packp.AdvRefs
+			if err := encJson.Unmarshal(res, &advRefs); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "Got advertised references from server: %v\n", advRefs.References)
+
 			txBldr := authtxb.NewTxBuilderFromCLI().WithCodec(cdc)
 			ctx := stdContext.Background()
-			for _, ref := range args[1:] {
-				if err := pushRef(ctx, uri, ref, txBldr, cliCtx, account); err != nil {
-					return err
-				}
+			if err := pushRefs(ctx, repo, args[1:], txBldr, cliCtx, author, advRefs); err != nil {
+				return err
 			}
 
 			return nil

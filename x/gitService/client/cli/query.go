@@ -1,27 +1,27 @@
 package cli
 
 import (
+	encJson "encoding/json"
 	"fmt"
 	"os"
-	encJson "encoding/json"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/spf13/cobra"
 )
 
-// GetCmdListRefs lists Git refs
-func GetCmdListRefs(queryRoute string, cdc *codec.Codec) *cobra.Command {
+// GetCmdListRefs returns Cobra command for listing Git references
+func GetCmdListRefs(moduleName string, cdc *codec.Codec) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list URL",
-		Short: "List Git refs in repository",
+		Use:   "list URI",
+		Short: "List Git references in repository",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			url := args[0]
-			fmt.Fprintf(os.Stderr, "Listing refs of repo %v\n", url)
+			uri := args[0]
+			fmt.Fprintf(os.Stderr, "Listing references of repo %v\n", uri)
 
 			cliCtx := context.NewCLIContext().WithCodec(cdc)
-			res, err := cliCtx.QueryWithData(fmt.Sprintf("custom/%s/listRefs/%s", queryRoute, url), nil)
+			res, err := cliCtx.QueryWithData(fmt.Sprintf("custom/%s/listRefs/%s", moduleName, uri), nil)
 			if err != nil {
 				return err
 			}
