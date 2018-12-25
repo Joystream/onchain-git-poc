@@ -78,9 +78,11 @@ func (s *Scanner) Header() (version, objects uint32, err error) {
 		return s.version, s.objects, nil
 	}
 
+	fmt.Fprintf(os.Stderr, "Scanning packfile\n")
 	sig, err := s.readSignature()
 	if err != nil {
 		if err == io.EOF {
+			fmt.Fprintf(os.Stderr, "Exiting scanning of packfile, since it's empty\n")
 			err = ErrEmptyPackfile
 		}
 
