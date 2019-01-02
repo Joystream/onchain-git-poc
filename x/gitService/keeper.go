@@ -46,7 +46,7 @@ func (k Keeper) GetAdvertisedReferences(ctx sdk.Context, owner string, repo stri
 	return packp.NewAdvRefs()
 }
 
-// UpdateReferences updates a Git reference
+// UpdateReferences updates a set of Git references
 func (k Keeper) UpdateReferences(ctx sdk.Context, msg MsgUpdateReferences) sdk.Error {
 	m := reRepoURI.FindStringSubmatch(msg.URI)
 	if m == nil {

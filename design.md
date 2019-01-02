@@ -1,16 +1,78 @@
 # Design Document
+This document describes the technical design of the Joystream Git to blockchain bridge.
 
-## Pushing to Blockchain
+The Joystream Git to blockchain bridge is a [Cosmos](https://github.com/cosmos/cosmos-sdk) app,
+consisting of a server and a client, both written in the Go language. The client is
+responsible for funneling _query_ and _transaction_ type requests to the server. The former type
+of request is for asking the server for information, i.e. getting state and not changing it,
+whereas the latter type is in order to change blockchain state.
 
-### Fetch into Remote (Alternative A)
-We push from a local repo to a blockchain one by adding a remote to the blockchain
-repo pointing to the local one, and then fetching from said remote. This causes data from
-the local repo to be written to a go-git `Storer` which again writes data to the blockchain.
+A good example of a transaction type request is pushing a local Git branch; the client
+has to compute the set of changes needed to be done on the server side and encode them
+(as a set of add/update/delete commands and a
+[packfile](https://git-scm.com/book/en/v2/Git-Internals-Packfiles) of Git objects) in
+a `MsgUpdateReferences` message to broadcast to nodes. In response to such a message,
+nodes (i.e. servers) should update the corresponding repository, in app state, with the
+incoming packfile and also according to the reference update commands (i.e. add/update/delete).
 
-### Push to Remote (Alternative B)
-We push from a local repo to a blockchain one by using go-git's push functionality.
+Our Cosmos application is named _GitService_. In order to integrate with the `git` command line
+client, we have a third component, which is the
+[Git remote helper](https://git-scm.com/docs/git-remote-helpers) `git-remote-joystream`. Simply
+told, this is a command line tool that Git will invoke when interacting with remotes using
+the `joystream` protocol. When invoked, it will in turn invoke the GitService client
+according to the arguments it has been given by git.
 
-## ReferenceUpdateRequest Format
-When pushing to another Git repo, changes are encoded in a so-called `ReferenceUpdateRequest`,
-which contains commands to add/update/delete references and a so-called packfile, which contains
-file data. In this section, we describe the `ReferenceUpdateRequest` and packfile formats.
+The GitService client and server use the [go-git](https://github.com/src-d/go-git/) library
+for implementing Git functionality.
+
+## GitService Client
+The GitService client, `gitservicecli`, is a command line tool offering the following sub-commands:
+
+### list
+The `list` sub-command asks the server to list references within a certain repository. This
+is used by the Git remote helper when it receives a `list` command from Git.
+
+### push-refs
+The `push-refs` sub-command computes a set of commands to add, update or delete references as well
+as a [packfile](https://git-scm.com/book/en/v2/Git-Internals-Packfiles) containing Git objects
+(e.g. commits, trees...) to be shared with the remote. This data gets encoded in a
+`MsgUpdateReferences` message that in turn gets broadcasted to nodes (i.e. servers) via
+blockchain transaction.
+
+## GitService Server
+The GitService server, `gitserviced`, is a Cosmos/Tendermint node that offers a set of query routes
+and handles a set of messages.
+
+The server has two query routes, `listRefs` and `advertisedReferences`. The former lists
+the names of all Git references stored for a repository, whereas the latter queries so-called
+advertised references from a Git repository. Both uses Git repository data stored in the
+Cosmos MultiStore. An `advertisedReferences` response will mainly provide the references
+contained in the repository, along with corresponding hashes. This route will be used
+by the client for example to find out what data it needs to push to the server.
+
+The server currently handles one message type, `MsgUpdateReferences`, which the client sends
+in order to push a set of references from a local Git repository to a repository on the blockchain.
+As described before, the message will contain a set of commands to add, update or delete
+references in the repository as well as a packfile containing Git objects.
+
+In response to a `MsgUpdateReferences` message, the server will write the packfile along with
+a generated index of it to the repository in the KVStore. It will also write/delete references
+accordingly.
+
+## Git Remote Helper
+The Git remote helper, `git-remote-joystream`, implements the
+[Git remote helper](https://git-scm.com/docs/git-remote-helpers) protocol, i.e. it accepts
+a URL command line argument and optionally a repository argument, and receives commands on
+[standard input](https://en.wikipedia.org/wiki/Standard_streams#Standard_input_(stdin)).
+Only the URL argument is used, to determine the repository on the blockchain.
+
+The helper will read lines of command input from standard input, as provided by `git`.
+The supported commands are:
+
+* capabilities
+* list
+* push
+
+In response to the push command, which refers to a set of references, it will invoke the
+GitService client with the `tx gitService push-refs` sub-command along with the repository
+URL and references as arguments.

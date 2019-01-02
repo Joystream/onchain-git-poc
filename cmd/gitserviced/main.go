@@ -42,7 +42,7 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:               "gitserviced",
-		Short:             "gitService App Daemon (server)",
+		Short:             "GitService App Daemon (server)",
 		PersistentPreRunE: server.PersistentPreRunEFn(ctx),
 	}
 

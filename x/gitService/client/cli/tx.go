@@ -228,6 +228,7 @@ func GetCmdPushRefs(moduleName string, cdc *codec.Codec) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			var advRefs *packp.AdvRefs
 			if err := encJson.Unmarshal(res, &advRefs); err != nil {
 				return err
