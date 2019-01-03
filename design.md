@@ -44,7 +44,7 @@ The MsgUpdateReferences message type contains the following fields:
 
 * URI - the unique identifier of the repository.
 * Author - the account address of the person pushing the changes.
-* Commands - a set of UpdateReferenceCommands, which each instruct how to add, update or delete
+* Commands - a set of `UpdateReferenceCommand`s, which each instruct how to add, update or delete
   a reference.
 * Shallow - a set of shallow references (not sure yet what this entails)
 * Packfile - The [packfile](https://git-scm.com/book/en/v2/Git-Internals-Packfiles) containing the
@@ -86,7 +86,22 @@ a generated index of it to the repository in the KVStore. It will also write/del
 accordingly.
 
 ### Handling of MsgUpdateReferences Messages
-When receiving a MsgUpdateReferences message, the server will
+When receiving a MsgUpdateReferences message, a server node will do the following:
+
+1. Build an index of the contained packfile, in the background.
+2. Write the packfile and the corresponding index for repository in KVStore.
+3. Update references for repository in KVStore as mandated by commands in `MsgUpdateReferences`
+   message.
+
+### Problems
+Here we identify current problems with the implementation.
+
+#### Per-Repository Data Storage
+A problem that will become a real issue with scale is that we have only one KVStore for all
+Git data. This means that for example in order to find the packfiles stored for a repository we
+have to iterate over *all* store keys (for every repository), in order to find only a certain
+repository's packfiles, which will obviously be very inefficient with a large number of
+repositories and data within them.
 
 ## Git Remote Helper
 The Git remote helper, `git-remote-joystream`, implements the

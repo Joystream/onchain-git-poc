@@ -16,6 +16,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
+// requireIndex loads packfile indexes
 func (pw *PackWriter) requireIndex() error {
 	if pw.index != nil {
 		return nil
@@ -66,6 +67,7 @@ func (pw *PackWriter) loadIdx(h plumbing.Hash) (err error) {
 	return err
 }
 
+// objectPacks gets hashes of packfiles stored for the repository
 func (pw *PackWriter) objectPacks() ([]plumbing.Hash, error) {
 	iter := pw.store.Iterator(nil, nil)
 	defer iter.Close()
@@ -95,7 +97,6 @@ func getPackfileWriter(store sdk.KVStore, repoURI string) (io.WriteCloser, error
 	if err != nil {
 		return nil, err
 	}
-
 	fr, err := os.Open(fw.Name())
 	if err != nil {
 		fw.Close()
