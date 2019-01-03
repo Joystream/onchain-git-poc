@@ -139,7 +139,7 @@ func getReferences(repo *gogit.Repository) ([]*plumbing.Reference, error) {
 // getHashesToPush determines hashes that should be pushed to remote
 func getHashesToPush(req *packp.ReferenceUpdateRequest, repo *gogit.Repository,
 	remoteRefs storer.ReferenceStorer) ([]plumbing.Hash, error) {
-	var hashes []plumbing.Hash
+	hashes := make([]plumbing.Hash, 0, len(req.Commands))
 	for _, cmd := range req.Commands {
 		if cmd.New == plumbing.ZeroHash {
 			continue
@@ -166,30 +166,30 @@ func getHashesToPush(req *packp.ReferenceUpdateRequest, repo *gogit.Repository,
 	return hashesToPush, err
 }
 
-// getReferencesToHashes returns hashes corresponding to references
+// referencesToHashes returns hashes corresponding to references
 func referencesToHashes(refs storer.ReferenceStorer) ([]plumbing.Hash, error) {
 	iter, err := refs.IterReferences()
 	if err != nil {
 		return nil, err
 	}
 
-	var hs []plumbing.Hash
+	hashes := make([]plumbing.Hash, 0)
 	err = iter.ForEach(func(ref *plumbing.Reference) error {
 		if ref.Type() != plumbing.HashReference {
 			return nil
 		}
 
-		hs = append(hs, ref.Hash())
+		hashes = append(hashes, ref.Hash())
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return hs, nil
+	return hashes, nil
 }
 
-// pushToRemote sends a message to the server to update a set of references
+// pushToBlockchain sends a message to the server to update a set of references
 func pushToBlockChain(ctx context.Context, uri string, refSpecs []gogitcfg.RefSpec,
 	repo *gogit.Repository, advRefs *packp.AdvRefs, cliCtx cosmosContext.CLIContext,
 	txBldr authtxb.TxBuilder, author sdk.AccAddress) error {
@@ -215,15 +215,13 @@ func pushToBlockChain(ctx context.Context, uri string, refSpecs []gogitcfg.RefSp
 		return err
 	}
 
-	isDelete := false
 	allDelete := true
 	for _, refSpec := range refSpecs {
-		if refSpec.IsDelete() {
-			isDelete = true
-		} else {
+		isDelete := refSpec.IsDelete()
+		if !isDelete {
 			allDelete = false
 		}
-		if isDelete && !allDelete {
+		if !allDelete {
 			break
 		}
 	}
@@ -376,6 +374,8 @@ func computeRefUpdateCmds(refSpecs []gogitcfg.RefSpec, localRefs []*plumbing.Ref
 	return nil
 }
 
+// addReference adds a command for adding or updating a reference to a ReferenceUpdateRequest,
+// if required conditions are met
 func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 	localRef *plumbing.Reference, req *packp.ReferenceUpdateRequest, repo *gogit.Repository) error {
 	fmt.Fprintf(os.Stderr, "Determining whether to add a command to ReferenceUpdateRequest\n")
@@ -401,7 +401,7 @@ func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 	remoteRef, err := remoteRefs.Reference(cmd.Name)
 	if err == nil {
 		if remoteRef.Type() != plumbing.HashReference {
-			//TODO: check actual git behavior here
+			// TODO: check actual git behavior here
 			return nil
 		}
 
@@ -437,18 +437,17 @@ func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 	return nil
 }
 
+// deleteReferences adds commands for deleting remote references corresponding to a refspec
 func deleteReferences(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 	req *packp.ReferenceUpdateRequest) error {
 	iter, err := remoteRefs.IterReferences()
 	if err != nil {
 		return err
 	}
-
 	err = iter.ForEach(func(ref *plumbing.Reference) error {
 		if ref.Type() != plumbing.HashReference {
 			return nil
 		}
-
 		if refSpec.Dst("") != ref.Name() {
 			return nil
 		}
@@ -462,5 +461,6 @@ func deleteReferences(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStore
 		req.Commands = append(req.Commands, cmd)
 		return nil
 	})
+
 	return err
 }

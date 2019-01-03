@@ -39,6 +39,32 @@ as a [packfile](https://git-scm.com/book/en/v2/Git-Internals-Packfiles) containi
 `MsgUpdateReferences` message that in turn gets broadcasted to nodes (i.e. servers) via
 blockchain transaction.
 
+#### The MsgUpdateReferences Format
+The MsgUpdateReferences message type contains the following fields:
+
+* URI - the unique identifier of the repository.
+* Author - the account address of the person pushing the changes.
+* Commands - a set of UpdateReferenceCommands, which each instruct how to add, update or delete
+  a reference.
+* Shallow - a set of shallow references (not sure yet what this entails)
+* Packfile - The [packfile](https://git-scm.com/book/en/v2/Git-Internals-Packfiles) containing the
+  Git objects to update the remote with.
+
+#### Computing of Changes
+The `push-refs` sub-command computes the updates to send to the server (as encoded in the
+`MsgUpdateReferences` message) according to a certain algorithm:
+
+1. Get advertised references from server.
+2. Determine references existing in local repository.
+3. Given provided "refspecs" (specifications from Git on references to add/update/delete),
+   produce commands for adding, updating and deleting references on the server.
+4. Determine hashes corresponding to references that need to be pushed to the server, as they
+   don't already exist in the remote repository.
+5. Encode packfile corresponding to hashes to be pushed, in background.
+6. Make MsgUpdateReferences mesage containing repository URI, commands for adding/updating/deleting
+   references, a shallow reference (TODO: find out purpose), author and packfile.
+7. Broadcast MsgUpdateReferences message for server nodes to process.
+
 ## GitService Server
 The GitService server, `gitserviced`, is a Cosmos/Tendermint node that offers a set of query routes
 and handles a set of messages.
@@ -58,6 +84,9 @@ references in the repository as well as a packfile containing Git objects.
 In response to a `MsgUpdateReferences` message, the server will write the packfile along with
 a generated index of it to the repository in the KVStore. It will also write/delete references
 accordingly.
+
+### Handling of MsgUpdateReferences Messages
+When receiving a MsgUpdateReferences message, the server will
 
 ## Git Remote Helper
 The Git remote helper, `git-remote-joystream`, implements the

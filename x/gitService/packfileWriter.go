@@ -260,8 +260,8 @@ func (pw *PackWriter) save() error {
 	return nil
 }
 
+// writePackfile writes a packfile and its index to a repository
 func writePackfile(store sdk.KVStore, msg MsgUpdateReferences) (err error) {
-	// TODO: Decode packfile and write it with index to $URI/objects/pack/
 	fmt.Fprintf(os.Stderr, "Keeper - writing packfile and index to %s/objects/pack/\n", msg.URI)
 	pw, err := getPackfileWriter(store, msg.URI)
 	if err != nil {

@@ -99,7 +99,8 @@ func (s *rpSession) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateR
 		return s.reportStatus(), err
 	}
 
-	msg, err := gitService.NewMsgUpdateReferences(s.endpoint.Path[1:], req, buf.Bytes(), s.client.author)
+	msg, err := gitService.NewMsgUpdateReferences(s.endpoint.Path[1:], req, buf.Bytes(),
+		s.client.author)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,
 			"Joystream client failed to create MsgUpdateReferences: %s\n", err)
