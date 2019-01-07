@@ -2,18 +2,17 @@ package cli
 
 import (
 	stdContext "context"
-	encJson "encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
-	"github.com/spf13/cobra"
-	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp"
-	// "github.com/cosmos/cosmos-sdk/client/utils"
+	"github.com/cosmos/cosmos-sdk/client/utils"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
+	"github.com/joystream/onchain-git-poc/x/gitService"
+	"github.com/spf13/cobra"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	gogit "gopkg.in/src-d/go-git.v4"
 	gogitcfg "gopkg.in/src-d/go-git.v4/config"
@@ -114,7 +113,7 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 }
 
 func pushRefs(ctx stdContext.Context, uri string, refs []string, txBldr authtxb.TxBuilder,
-	cliCtx context.CLIContext, author sdk.AccAddress, advRefs *packp.AdvRefs) error {
+	cliCtx context.CLIContext, author sdk.AccAddress, moduleName string) error {
 	fmt.Fprintf(os.Stderr, "Pushing refs %v from local to blockchain repo '%s'\n", refs, uri)
 
 	// TODO: Support getting repo dir from user
@@ -143,7 +142,7 @@ func pushRefs(ctx stdContext.Context, uri string, refs []string, txBldr authtxb.
 		refSpecs = append(refSpecs, refSpec)
 	}
 
-	err = pushToBlockChain(ctx, uri, refSpecs, repo, advRefs, cliCtx, txBldr, author)
+	err = pushToBlockChain(ctx, uri, refSpecs, repo, cliCtx, txBldr, author, moduleName)
 	if err != nil {
 		return err
 	}
@@ -222,22 +221,60 @@ func GetCmdPushRefs(moduleName string, cdc *codec.Codec) *cobra.Command {
 
 			repo := args[0]
 
-			fmt.Fprintf(os.Stderr, "Querying for advertised references in repository '%s'\n", repo)
-			res, err := cliCtx.QueryWithData(fmt.Sprintf("custom/%s/advertisedReferences/%s",
-				moduleName, repo), nil)
+			txBldr := authtxb.NewTxBuilderFromCLI().WithCodec(cdc)
+			ctx := stdContext.Background()
+			if err := pushRefs(ctx, repo, args[1:], txBldr, cliCtx, author, moduleName); err != nil {
+				return err
+			}
+
+			return nil
+		},
+	}
+}
+
+func removeRepo(ctx stdContext.Context, uri string, txBldr authtxb.TxBuilder,
+	cliCtx context.CLIContext, author sdk.AccAddress, moduleName string) error {
+	fmt.Fprintf(os.Stderr, "Removing repository '%s' from blockchain\n", uri)
+	msg, err := gitService.NewMsgRemoveRepository(uri, author)
+	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"Joystream client failed to create NewMsgRemoveRepository: %s\n", err)
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "Joystream client sending MsgRemoveRepository to server for repo '%s'\n",
+		msg.URI)
+
+	if err := utils.CompleteAndBroadcastTxCli(txBldr, cliCtx, []sdk.Msg{msg}); err != nil {
+		fmt.Fprintf(os.Stderr, "Sending MsgRemoveRepository to node failed: %s\n", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetCmdRemoveRepo is the CLI command for removing a repository on the blockchain
+func GetCmdRemoveRepo(moduleName string, cdc *codec.Codec) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove-repo repo",
+		Short: "Remove a Git repository on the blockchain",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintf(os.Stderr, "Executing CmdRemoveRepo\n")
+			cliCtx := context.NewCLIContext().WithCodec(cdc).WithAccountDecoder(cdc)
+			if err := cliCtx.EnsureAccountExists(); err != nil {
+				return err
+			}
+
+			author, err := cliCtx.GetFromAddress()
 			if err != nil {
 				return err
 			}
 
-			var advRefs *packp.AdvRefs
-			if err := encJson.Unmarshal(res, &advRefs); err != nil {
-				return err
-			}
-			fmt.Fprintf(os.Stderr, "Got advertised references from server: %v\n", advRefs.References)
+			repo := args[0]
 
 			txBldr := authtxb.NewTxBuilderFromCLI().WithCodec(cdc)
 			ctx := stdContext.Background()
-			if err := pushRefs(ctx, repo, args[1:], txBldr, cliCtx, author, advRefs); err != nil {
+			if err := removeRepo(ctx, repo, txBldr, cliCtx, author, moduleName); err != nil {
 				return err
 			}
 

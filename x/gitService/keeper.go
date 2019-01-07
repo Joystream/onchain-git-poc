@@ -14,7 +14,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
-var reRepoURI = regexp.MustCompile("([^/]+)/([^/]+)")
+var reRepoURI = regexp.MustCompile("^[^/]+/[^/]+$")
 
 // Keeper maintains the link to data storage and exposes getter/setter methods for the various
 // parts of the state machine
@@ -48,8 +48,7 @@ func (k Keeper) GetAdvertisedReferences(ctx sdk.Context, owner string, repo stri
 
 // UpdateReferences updates a set of Git references
 func (k Keeper) UpdateReferences(ctx sdk.Context, msg MsgUpdateReferences) sdk.Error {
-	m := reRepoURI.FindStringSubmatch(msg.URI)
-	if m == nil {
+	if !reRepoURI.MatchString(msg.URI) {
 		fmt.Fprintf(os.Stderr, "Invalid repo URI: '%s'\n", msg.URI)
 		return sdk.ErrUnknownRequest(fmt.Sprintf("Invalid repo URI: '%s'", msg.URI))
 	}
@@ -146,6 +145,29 @@ func updateReferences(store sdk.KVStore, msg MsgUpdateReferences) error {
 			fmt.Fprintf(os.Stderr, "Updating reference '%s' to point to hash '%s'\n", refPath,
 				cmd.New)
 			writeReference(store, refPath, cmd)
+		}
+	}
+
+	return nil
+}
+
+// RemoveRepository deletes a repository
+func (k Keeper) RemoveRepository(ctx sdk.Context, msg MsgRemoveRepository) sdk.Error {
+	if !reRepoURI.MatchString(msg.URI) {
+		fmt.Fprintf(os.Stderr, "Invalid repository URI: '%s'\n", msg.URI)
+		return sdk.ErrUnknownRequest(fmt.Sprintf("Invalid repository URI: '%s'", msg.URI))
+	}
+
+	fmt.Fprintf(os.Stderr, "Keeper removing repository '%s'\n", msg.URI)
+	// TODO: Verify that user is authorized to write to repo
+	store := ctx.KVStore(k.gitStoreKey)
+	iter := store.Iterator(nil, nil)
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		key := string(iter.Key())
+		if strings.HasPrefix(key, fmt.Sprintf("%s/", msg.URI)) {
+			fmt.Fprintf(os.Stderr, "Keeper removing removing entry '%s' from store\n", key)
+			store.Delete(iter.Key())
 		}
 	}
 

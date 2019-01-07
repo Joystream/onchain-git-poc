@@ -58,7 +58,7 @@ func (c *UpdateReferenceCommand) validate() error {
 	return nil
 }
 
-// MsgUpdateReferences defines the UpdateReference message
+// MsgUpdateReferences defines the UpdateReferences message
 type MsgUpdateReferences struct {
 	URI      string
 	Author   sdk.AccAddress
@@ -124,5 +124,55 @@ func (msg MsgUpdateReferences) GetSignBytes() []byte {
 
 // GetSigners Implements Msg.
 func (msg MsgUpdateReferences) GetSigners() []sdk.AccAddress {
+	return []sdk.AccAddress{msg.Author}
+}
+
+// MsgRemoveRepository defines the DeleteRepository message
+type MsgRemoveRepository struct {
+	URI    string
+	Author sdk.AccAddress
+}
+
+// NewMsgRemoveRepository is the constructor function for MsgRemoveRepository
+func NewMsgRemoveRepository(uri string, author sdk.AccAddress) (*MsgRemoveRepository, sdk.Error) {
+	msg := &MsgRemoveRepository{
+		URI:    uri,
+		Author: author,
+	}
+
+	return msg, msg.ValidateBasic()
+}
+
+// Route implements Msg.
+func (msg MsgRemoveRepository) Route() string { return "gitService" }
+
+// Type implements Msg.
+func (msg MsgRemoveRepository) Type() string { return "removeRepository" }
+
+// ValidateBasic Implements Msg.
+func (msg MsgRemoveRepository) ValidateBasic() sdk.Error {
+	if msg.Author.Empty() {
+		fmt.Fprintf(os.Stderr, "MsgRemoveRepository author empty\n")
+		return sdk.ErrInvalidAddress(msg.Author.String())
+	}
+	if len(msg.URI) == 0 {
+		fmt.Fprintf(os.Stderr, "MsgRemoveRepository URI empty\n")
+		return sdk.ErrUnknownRequest("URI cannot be empty")
+	}
+
+	return nil
+}
+
+// GetSignBytes Implements Msg.
+func (msg MsgRemoveRepository) GetSignBytes() []byte {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		panic(err)
+	}
+	return sdk.MustSortJSON(b)
+}
+
+// GetSigners Implements Msg.
+func (msg MsgRemoveRepository) GetSigners() []sdk.AccAddress {
 	return []sdk.AccAddress{msg.Author}
 }

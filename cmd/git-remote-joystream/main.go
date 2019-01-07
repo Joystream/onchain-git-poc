@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
 	"bufio"
-	"os"
-	"strings"
 	"fmt"
+	"log"
+	"os"
 	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -131,8 +131,8 @@ func handleList(repo repository, command []string) error {
 
 type repository struct {
 	chainID string
-	owner string
-	name string
+	owner   string
+	name    string
 }
 
 func (r repository) String() string {
@@ -141,7 +141,7 @@ func (r repository) String() string {
 
 func cmdRoot(_ *cobra.Command, args []string) error {
 	var url string
-	if (len(args) == 1) {
+	if len(args) == 1 {
 		url = args[0]
 	} else {
 		url = args[1]
@@ -150,7 +150,7 @@ func cmdRoot(_ *cobra.Command, args []string) error {
 	if m = reJoystreamURL.FindStringSubmatch(url); m == nil {
 		return fmt.Errorf("URL on invalid format: '%v'", url)
 	}
-	repo := repository{chainID: m[1], owner: m[2], name: m[3],}
+	repo := repository{chainID: m[1], owner: m[2], name: m[3]}
 
 	fmt.Fprintf(os.Stderr, "Starting, repo: %v/%v/%v\n", repo.chainID, repo.owner, repo.name)
 
@@ -205,7 +205,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "git-remote-joystream repository [URL]",
 		Short: "Git remote helper for joystream blockchain",
-		Args:	 cobra.RangeArgs(1, 2),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE:  cmdRoot,
 	}
 	if err := rootCmd.Execute(); err != nil {
