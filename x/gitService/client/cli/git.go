@@ -438,6 +438,7 @@ func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 			cmd.Name, cmd.Old, cmd.New)
 	}
 	req.Commands = append(req.Commands, cmd)
+
 	return nil
 }
 

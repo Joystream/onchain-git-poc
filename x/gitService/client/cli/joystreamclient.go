@@ -95,9 +95,9 @@ func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
 	if err := encJson.Unmarshal(res, &advRefs); err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(os.Stderr, "Got advertised references from server: %v\n", advRefs.References)
+	fmt.Fprintf(os.Stderr, "Joystream client got advertised references from server: %+v\n",
+		advRefs.References)
 
-	fmt.Fprintf(os.Stderr, "Joystream client got advertised references: %v\n", advRefs)
 	return advRefs, nil
 }
 
