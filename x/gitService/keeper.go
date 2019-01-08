@@ -101,21 +101,28 @@ func setReferences(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
 }
 
 func setHead(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
-	refBytes := store.Get([]byte(fmt.Sprintf("%s/HEAD", uri)))
+	headPath := fmt.Sprintf("%s/HEAD", uri)
+	fmt.Fprintf(os.Stderr, "Keeper determining repository head, path: '%s'\n", headPath)
+	refBytes := store.Get([]byte(headPath))
 	if refBytes == nil {
+		fmt.Fprintf(os.Stderr, "Repository doesn't have head\n")
 		return nil
 	}
 	refStr := string(refBytes)
 
 	ref := plumbing.NewReferenceFromStrings("HEAD", refStr)
 	if ref.Type() == plumbing.SymbolicReference {
+		fmt.Fprintf(os.Stderr, "Repository head reference is symbolic, target: '%s'\n", refStr)
 		if err := ar.AddReference(ref); err != nil {
 			return nil
 		}
 
 		// Get target reference
-		refBytes = store.Get([]byte(fmt.Sprintf("%s/%s", uri, ref.Target())))
+		headPath = fmt.Sprintf("%s/%s", uri, ref.Target())
+		fmt.Fprintf(os.Stderr, "Keeper getting repository head reference, path: '%s'\n", headPath)
+		refBytes = store.Get([]byte(headPath))
 		if refBytes == nil {
+			fmt.Fprintf(os.Stderr, "Failed to get the contents of head reference at '%s'\n", headPath)
 			return nil
 		}
 		refStr = string(refBytes)
@@ -163,7 +170,7 @@ func (k Keeper) UpdateReferences(ctx sdk.Context, msg MsgUpdateReferences) sdk.E
 
 func initializeRepo(store sdk.KVStore, msg MsgUpdateReferences) error {
 	fmt.Fprintf(os.Stderr, "Keeper - store doesn't have repo '%s', initializing it\n", msg.URI)
-	store.Set([]byte(fmt.Sprintf("%s/HEAD", msg.URI)), []byte("ref: refs/heads/master\n"))
+	store.Set([]byte(fmt.Sprintf("%s/HEAD", msg.URI)), []byte("ref: refs/heads/master"))
 	store.Set([]byte(fmt.Sprintf("%s/config", msg.URI)), []byte(`[core]
 	repositoryformatversion = 0
 	bare = true
