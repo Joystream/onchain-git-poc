@@ -1,0 +1,48 @@
+[prune]
+  go-tests = true
+  unused-packages = true
+
+[[constraint]]
+  name = "github.com/cosmos/cosmos-sdk"
+  version = "v0.27.0"
+
+[[override]]
+  name = "github.com/golang/protobuf"
+  version = "=1.1.0"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "~0.0.3"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+  version = "~1.0.0"
+
+[[override]]
+  name = "github.com/tendermint/go-amino"
+  version = "v0.14.1"
+
+[[override]]
+  name = "github.com/tendermint/iavl"
+  version = "=v0.12.0"
+
+[[override]]
+  name = "github.com/tendermint/tendermint"
+  version = "v0.27.0"
+
+[[override]]
+  name = "golang.org/x/crypto"
+  source = "https://github.com/tendermint/crypto"
+  revision = "3764759f34a542a3aef74d6b02e35be7ab893bba"
+
+[[constraint]]
+  name = "gopkg.in/src-d/go-git.v4"
+  version = "v4.8.1"
+
+[[constraint]]
+  name = "gopkg.in/src-d/go-billy.v4"
+  version = "v4.3.0"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+  version = "v0.8.0"
