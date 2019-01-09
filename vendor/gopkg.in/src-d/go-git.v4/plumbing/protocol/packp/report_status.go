@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -62,6 +63,7 @@ func (s *ReportStatus) Encode(w io.Writer) error {
 func (s *ReportStatus) Decode(r io.Reader) error {
 	scan := pktline.NewScanner(r)
 	if err := s.scanFirstLine(scan); err != nil {
+		fmt.Fprintf(os.Stderr, "ReportStatus failed scanning of first line: %s\n", err)
 		return err
 	}
 

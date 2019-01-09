@@ -2,7 +2,9 @@ package pktline
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
 )
 
 const (
@@ -54,6 +56,7 @@ func (s *Scanner) Scan() bool {
 		return false
 	}
 	if s.err != nil {
+		fmt.Fprintf(os.Stderr, "Scanner failed reading payload length: %s\n", s.err)
 		return false
 	}
 
@@ -62,6 +65,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	if _, s.err = io.ReadFull(s.r, s.payload[:l]); s.err != nil {
+		fmt.Fprintf(os.Stderr, "Scanner failed reading payload: %s\n", s.err)
 		return false
 	}
 	s.payload = s.payload[:l]
@@ -81,6 +85,7 @@ func (s *Scanner) Bytes() []byte {
 func (s *Scanner) readPayloadLen() (int, error) {
 	if _, err := io.ReadFull(s.r, s.len[:]); err != nil {
 		if err == io.ErrUnexpectedEOF {
+			fmt.Fprintf(os.Stderr, "Scanner failed reading payload length due to reader EOF\n")
 			return 0, ErrInvalidPktLen
 		}
 

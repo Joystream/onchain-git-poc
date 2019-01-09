@@ -3,6 +3,7 @@
 set -eo pipefail
 
 make install
+
 rm -rf /tmp/gitservice && mkdir -p /tmp/gitservice
 cd /tmp/gitservice
 git init sourcerepo && cd sourcerepo

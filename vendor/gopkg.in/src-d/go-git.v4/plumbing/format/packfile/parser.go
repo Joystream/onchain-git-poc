@@ -180,7 +180,7 @@ func (p *Parser) init() error {
 }
 
 func (p *Parser) indexObjects() error {
-	fmt.Printf("Parser indexing %d objects\n", p.count)
+	fmt.Fprintf(os.Stderr, "Parser indexing %d objects\n", p.count)
 	buf := new(bytes.Buffer)
 
 	for i := uint32(0); i < p.count; i++ {

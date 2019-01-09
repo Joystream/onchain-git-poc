@@ -178,6 +178,7 @@ func (s *session) AdvertisedReferences() (*packp.AdvRefs, error) {
 
 	transport.FilterUnsupportedCapabilities(ar.Capabilities)
 	s.advRefs = ar
+	fmt.Fprintf(os.Stderr, "Transport decoded advertised references from server: %+v\n", ar)
 	return ar, nil
 }
 
@@ -310,8 +311,10 @@ func (s *session) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateReq
 
 	var d *sideband.Demuxer
 	if req.Capabilities.Supports(capability.Sideband64k) {
+		fmt.Fprintf(os.Stderr, "Transport demuxing with Sideband64k\n")
 		d = sideband.NewDemuxer(sideband.Sideband64k, r)
 	} else if req.Capabilities.Supports(capability.Sideband) {
+		fmt.Fprintf(os.Stderr, "Transport demuxing with Sideband\n")
 		d = sideband.NewDemuxer(sideband.Sideband, r)
 	}
 	if d != nil {
