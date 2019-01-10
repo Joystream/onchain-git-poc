@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"sync"
 
@@ -44,6 +43,8 @@ func (w *Writer) Index() (*MemoryIndex, error) {
 
 // Add appends new object data.
 func (w *Writer) Add(h plumbing.Hash, pos uint64, crc uint32) {
+	logger := getLogger()
+
 	w.m.Lock()
 	defer w.m.Unlock()
 
@@ -53,8 +54,7 @@ func (w *Writer) Add(h plumbing.Hash, pos uint64, crc uint32) {
 
 	if _, ok := w.added[h]; !ok {
 		w.added[h] = struct{}{}
-		fmt.Fprintf(os.Stderr, "Writer appending object with hash %s to objects property\n",
-			h)
+		logger.Debug().Msgf("Writer appending object with hash %s to objects property", h)
 		w.objects = append(w.objects, Entry{h, crc, pos})
 	}
 
@@ -66,7 +66,8 @@ func (w *Writer) Finished() bool {
 
 // OnHeader implements packfile.Observer interface.
 func (w *Writer) OnHeader(count uint32) error {
-	fmt.Fprintf(os.Stderr, "Writer.OnHeader called with count %d\n", count)
+	logger := getLogger()
+	logger.Debug().Msgf("Writer.OnHeader called with count %d", count)
 	w.count = count
 	w.objects = make(objects, 0, count)
 	return nil
@@ -79,7 +80,8 @@ func (w *Writer) OnInflatedObjectHeader(t plumbing.ObjectType, objSize int64, po
 
 // OnInflatedObjectContent implements packfile.Observer interface.
 func (w *Writer) OnInflatedObjectContent(h plumbing.Hash, pos int64, crc uint32, _ []byte) error {
-	fmt.Fprintf(os.Stderr, "Writer.OnInflatedObjectContent called for hash %s, position %d\n", h,
+	logger := getLogger()
+	logger.Debug().Msgf("Writer.OnInflatedObjectContent called for hash %s, position %d", h,
 		pos)
 	w.Add(h, uint64(pos), crc)
 	return nil
@@ -87,9 +89,10 @@ func (w *Writer) OnInflatedObjectContent(h plumbing.Hash, pos int64, crc uint32,
 
 // OnFooter implements packfile.Observer interface.
 func (w *Writer) OnFooter(h plumbing.Hash) error {
+	logger := getLogger()
 	w.checksum = h
 	w.finished = true
-	fmt.Fprintf(os.Stderr, "Writer.OnFooter called\n")
+	logger.Debug().Msgf("Writer.OnFooter called")
 	_, err := w.createIndex()
 	if err != nil {
 		return err
@@ -101,7 +104,8 @@ func (w *Writer) OnFooter(h plumbing.Hash) error {
 // createIndex returns a filled MemoryIndex with the information filled by
 // the observer callbacks.
 func (w *Writer) createIndex() (*MemoryIndex, error) {
-	fmt.Fprintf(os.Stderr, "Writer creating index\n")
+	logger := getLogger()
+	logger.Debug().Msgf("Writer creating index")
 	if !w.finished {
 		return nil, fmt.Errorf("the index still hasn't finished building")
 	}
@@ -166,7 +170,7 @@ func (w *Writer) createIndex() (*MemoryIndex, error) {
 	idx.Version = VersionSupported
 	idx.PackfileChecksum = w.checksum
 
-	fmt.Fprintf(os.Stderr, "Writer finished creating index\n")
+	logger.Debug().Msgf("Writer finished creating index")
 	return idx, nil
 }
 

@@ -2,9 +2,7 @@ package pktline
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"os"
 )
 
 const (
@@ -49,6 +47,8 @@ func (s *Scanner) Err() error {
 // will return any error that occurred during scanning, except that if
 // it was io.EOF, Err will return nil.
 func (s *Scanner) Scan() bool {
+	logger := getLogger()
+
 	var l int
 	l, s.err = s.readPayloadLen()
 	if s.err == io.EOF {
@@ -56,7 +56,7 @@ func (s *Scanner) Scan() bool {
 		return false
 	}
 	if s.err != nil {
-		fmt.Fprintf(os.Stderr, "Scanner failed reading payload length: %s\n", s.err)
+		logger.Debug().Msgf("Scanner failed reading payload length: %s\n", s.err)
 		return false
 	}
 
@@ -65,7 +65,7 @@ func (s *Scanner) Scan() bool {
 	}
 
 	if _, s.err = io.ReadFull(s.r, s.payload[:l]); s.err != nil {
-		fmt.Fprintf(os.Stderr, "Scanner failed reading payload: %s\n", s.err)
+		logger.Debug().Msgf("Scanner failed reading payload: %s\n", s.err)
 		return false
 	}
 	s.payload = s.payload[:l]
@@ -83,9 +83,11 @@ func (s *Scanner) Bytes() []byte {
 // Method readPayloadLen returns the payload length by reading the
 // pkt-len and subtracting the pkt-len size.
 func (s *Scanner) readPayloadLen() (int, error) {
+	logger := getLogger()
+
 	if _, err := io.ReadFull(s.r, s.len[:]); err != nil {
 		if err == io.ErrUnexpectedEOF {
-			fmt.Fprintf(os.Stderr, "Scanner failed reading payload length due to reader EOF\n")
+			logger.Debug().Msgf("Scanner failed reading payload length due to reader EOF")
 			return 0, ErrInvalidPktLen
 		}
 

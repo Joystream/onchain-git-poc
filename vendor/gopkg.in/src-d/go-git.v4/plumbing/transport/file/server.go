@@ -32,6 +32,8 @@ func ServeUploadPack(path string) error {
 // input and error. This is meant to be used when implementing a
 // git-receive-pack command.
 func ServeReceivePack(path string) error {
+	logger := getLogger()
+	logger.Debug().Msgf("ServeReceivePack invoked for path '%s'", path)
 	ep, err := transport.NewEndpoint(path)
 	if err != nil {
 		return err

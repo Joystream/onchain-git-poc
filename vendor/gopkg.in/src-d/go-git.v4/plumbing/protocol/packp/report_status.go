@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -61,9 +60,10 @@ func (s *ReportStatus) Encode(w io.Writer) error {
 // Decode reads from the given reader and decodes a report-status message. It
 // does not read more input than what is needed to fill the report status.
 func (s *ReportStatus) Decode(r io.Reader) error {
+	logger := getLogger()
 	scan := pktline.NewScanner(r)
 	if err := s.scanFirstLine(scan); err != nil {
-		fmt.Fprintf(os.Stderr, "ReportStatus failed scanning of first line: %s\n", err)
+		logger.Debug().Msgf("ReportStatus failed scanning of first line: %s\n", err)
 		return err
 	}
 

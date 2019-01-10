@@ -15,5 +15,6 @@ git add README.md && git commit -q -m"Start repo"
 gogitclient push origin +refs/heads/master:refs/heads/master
 
 echo "This is a test of pushing branch updates" >> README.md
-git add README.md && git commit -q -m"Edit README"
+echo "This is another file" > test.txt
+git add README.md test.txt && git commit -q -m"Edit README"
 gogitclient push origin refs/heads/master:refs/heads/master

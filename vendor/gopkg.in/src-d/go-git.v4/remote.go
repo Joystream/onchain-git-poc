@@ -5,8 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+	"strings"
 
+	"github.com/rs/zerolog"
 	"gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/packfile"
@@ -75,6 +76,9 @@ func (r *Remote) Push(o *PushOptions) error {
 // operation is complete, an error is returned. The context only affects to the
 // transport operations.
 func (r *Remote) PushContext(ctx context.Context, o *PushOptions) (err error) {
+	logger := getLogger()
+	logger.Debug().Msgf("Remote pushing %v to %s", o.RefSpecs, o.RemoteName)
+
 	if err := o.Validate(); err != nil {
 		return err
 	}
@@ -90,6 +94,7 @@ func (r *Remote) PushContext(ctx context.Context, o *PushOptions) (err error) {
 
 	defer ioutil.CheckClose(s, &err)
 
+	logger.Debug().Msgf("Remote getting advertised references")
 	ar, err := s.AdvertisedReferences()
 	if err != nil {
 		return err
@@ -100,6 +105,11 @@ func (r *Remote) PushContext(ctx context.Context, o *PushOptions) (err error) {
 		return err
 	}
 
+	dict := zerolog.Dict()
+	for k, v := range remoteRefs {
+		dict.Str(k.String(), v.Hash().String())
+	}
+	logger.Debug().Dict("references", dict).Msgf("Remote got advertised references")
 	isDelete := false
 	allDelete := true
 	for _, rs := range o.RefSpecs {
@@ -132,6 +142,7 @@ func (r *Remote) PushContext(ctx context.Context, o *PushOptions) (err error) {
 	}
 
 	objects := objectsToPush(req.Commands)
+	logger.Debug().Msgf("Remote - objects to push: %v", objects)
 
 	haves, err := referencesToHashes(remoteRefs)
 	if err != nil {
@@ -178,6 +189,8 @@ func (r *Remote) newReferenceUpdateRequest(
 	remoteRefs storer.ReferenceStorer,
 	ar *packp.AdvRefs,
 ) (*packp.ReferenceUpdateRequest, error) {
+	logger := getLogger()
+	logger.Debug().Msgf("Remote creating packp.ReferenceUpdatedRequest")
 	req := packp.NewReferenceUpdateRequestFromCapabilities(ar.Capabilities)
 
 	if o.Progress != nil {
@@ -457,6 +470,7 @@ func (r *Remote) deleteReferences(rs config.RefSpec,
 func (r *Remote) addReferenceIfRefSpecMatches(rs config.RefSpec,
 	remoteRefs storer.ReferenceStorer, localRef *plumbing.Reference,
 	req *packp.ReferenceUpdateRequest) error {
+	logger := getLogger()
 
 	if localRef.Type() != plumbing.HashReference {
 		return nil
@@ -494,6 +508,11 @@ func (r *Remote) addReferenceIfRefSpecMatches(rs config.RefSpec,
 		}
 	}
 
+	logger.Debug().
+		Str("name", cmd.Name.String()).
+		Str("old", cmd.Old.String()).
+		Str("new", cmd.New.String()).
+		Msgf("Remote appending command")
 	req.Commands = append(req.Commands, cmd)
 	return nil
 }
@@ -1001,6 +1020,13 @@ func pushHashes(
 	hs []plumbing.Hash,
 	useRefDeltas bool,
 ) (*packp.ReportStatus, error) {
+	logger := getLogger()
+	strHs := make([]string, 0, len(hs))
+	for _, h := range hs {
+		strHs = append(strHs, h.String())
+	}
+	logger.Debug().Str("hashes", strings.Join(strHs, ", ")).Bool("useRefDeltas", useRefDeltas).Msgf(
+		"Pushing %d hash(es) to remote", len(hs))
 
 	rd, wr := io.Pipe()
 	req.Packfile = rd
@@ -1010,6 +1036,7 @@ func pushHashes(
 	}
 	done := make(chan error)
 	go func() {
+		logger.Debug().Msgf("Encoding packfile")
 		e := packfile.NewEncoder(wr, s, useRefDeltas)
 		if _, err := e.Encode(hs, config.Pack.Window); err != nil {
 			done <- wr.CloseWithError(err)
@@ -1019,7 +1046,7 @@ func pushHashes(
 		done <- wr.Close()
 	}()
 
-	fmt.Fprintf(os.Stderr, "Remote calling sess.ReceivePack\n")
+	logger.Debug().Msgf("Remote calling sess.ReceivePack")
 	rs, err := sess.ReceivePack(ctx, req)
 	if err != nil {
 		return nil, err

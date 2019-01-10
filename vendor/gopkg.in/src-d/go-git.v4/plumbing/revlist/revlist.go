@@ -5,6 +5,7 @@ package revlist
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/filemode"
@@ -21,6 +22,20 @@ func Objects(
 	objs,
 	ignore []plumbing.Hash,
 ) ([]plumbing.Hash, error) {
+	objStrs := make([]string, 0, len(objs))
+	for _, obj := range objs {
+		objStrs = append(objStrs, obj.String())
+	}
+	ignoreStrs := make([]string, 0, len(ignore))
+	for _, ig := range ignore {
+		ignoreStrs = append(ignoreStrs, ig.String())
+	}
+	logger := getLogger()
+	logger.Debug().
+		Str("objects", strings.Join(objStrs, ", ")).
+		Str("ignore", strings.Join(ignoreStrs, ", ")).
+		Msgf("Revlist computing hashes of objects reachable from those given")
+
 	ignore, err := objects(s, ignore, nil, true)
 	if err != nil {
 		return nil, err
@@ -68,6 +83,9 @@ func processObject(
 	ignore []plumbing.Hash,
 	walkerFunc func(h plumbing.Hash),
 ) error {
+	logger := getLogger()
+	logger.Debug().Msgf("Processing object %s", h)
+
 	if seen[h] {
 		return nil
 	}
@@ -84,13 +102,17 @@ func processObject(
 
 	switch do := do.(type) {
 	case *object.Commit:
+		logger.Debug().Msgf("Object %s is a commit", h)
 		return reachableObjects(do, seen, visited, ignore, walkerFunc)
 	case *object.Tree:
+		logger.Debug().Msgf("Object %s is a tree", h)
 		return iterateCommitTrees(seen, do, walkerFunc)
 	case *object.Tag:
+		logger.Debug().Msgf("Object %s is a tag", h)
 		walkerFunc(do.Hash)
 		return processObject(s, do.Target, seen, visited, ignore, walkerFunc)
 	case *object.Blob:
+		logger.Debug().Msgf("Object %s is a blob", h)
 		walkerFunc(do.Hash)
 	default:
 		return fmt.Errorf("object type not valid: %s. "+
@@ -111,6 +133,9 @@ func reachableObjects(
 	ignore []plumbing.Hash,
 	cb func(h plumbing.Hash),
 ) error {
+	logger := getLogger()
+	logger.Debug().Msgf("Computing objects reachable from commit %s", commit.Hash)
+
 	i := object.NewCommitPreorderIter(commit, seen, ignore)
 	pending := make(map[plumbing.Hash]bool)
 	addPendingParents(pending, visited, commit)
@@ -125,6 +150,7 @@ func reachableObjects(
 			return err
 		}
 
+		logger.Debug().Msgf("Handling commit %s", commit.Hash)
 		if pending[commit.Hash] {
 			delete(pending, commit.Hash)
 		}
@@ -168,6 +194,9 @@ func iterateCommitTrees(
 	tree *object.Tree,
 	cb func(h plumbing.Hash),
 ) error {
+	logger := getLogger()
+	logger.Debug().Msgf("Walking tree %s", tree.Hash)
+
 	if seen[tree.Hash] {
 		return nil
 	}

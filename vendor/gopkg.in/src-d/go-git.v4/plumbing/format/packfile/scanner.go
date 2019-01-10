@@ -9,7 +9,6 @@ import (
 	"hash/crc32"
 	"io"
 	stdioutil "io/ioutil"
-	"os"
 	"sync"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -74,15 +73,17 @@ func NewScanner(r io.Reader) *Scanner {
 // It returns the version and the object count and performs checks on the
 // validity of the signature and the version fields.
 func (s *Scanner) Header() (version, objects uint32, err error) {
+	logger := getLogger()
+
 	if s.version != 0 {
 		return s.version, s.objects, nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Scanning packfile\n")
+	logger.Debug().Msgf("Scanning packfile")
 	sig, err := s.readSignature()
 	if err != nil {
 		if err == io.EOF {
-			fmt.Fprintf(os.Stderr, "Exiting scanning of packfile, since it's empty\n")
+			logger.Debug().Msgf("Exiting scanning of packfile, since it's empty")
 			err = ErrEmptyPackfile
 		}
 
@@ -107,21 +108,22 @@ func (s *Scanner) Header() (version, objects uint32, err error) {
 
 	objects, err = s.readCount()
 	s.objects = objects
-	fmt.Fprintf(os.Stderr, "Scanner read packfile; version: %d, num objects: %d\n", version,
-		objects)
+	logger.Debug().Msgf("Scanner read packfile; version: %d, num objects: %d", version, objects)
 	return
 }
 
 // readSignature reads an returns the signature field in the packfile.
 func (s *Scanner) readSignature() ([]byte, error) {
+	logger := getLogger()
+
 	var sig = make([]byte, 4)
-	fmt.Fprintf(os.Stderr, "Scanner trying to read packfile signature\n")
+	logger.Debug().Msgf("Scanner trying to read packfile signature")
 	if _, err := io.ReadFull(s.r, sig); err != nil {
-		fmt.Fprintf(os.Stderr, "Scanner failed to read %d bytes\n", len(sig))
+		logger.Debug().Msgf("Scanner failed to read %d bytes", len(sig))
 		return []byte{}, err
 	}
 
-	fmt.Fprintf(os.Stderr, "Scanner successfully read signature: %s\n", sig)
+	logger.Debug().Msgf("Scanner successfully read signature: %s", sig)
 	return sig, nil
 }
 
@@ -148,7 +150,9 @@ func (s *Scanner) readCount() (uint32, error) {
 
 // NextObjectHeader returns the ObjectHeader for the next object in the reader
 func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
-	fmt.Fprintf(os.Stderr, "Reading next object header\n")
+	logger := getLogger()
+
+	logger.Debug().Msgf("Reading next object header")
 	defer s.Flush()
 
 	if err := s.doPending(); err != nil {
@@ -162,7 +166,7 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 
 	var err error
 	h.Offset, err = s.r.Seek(0, io.SeekCurrent)
-	fmt.Fprintf(os.Stderr, "Determined current read offset: %d\n", h.Offset)
+	logger.Debug().Msgf("Determined current read offset: %d", h.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -174,23 +178,23 @@ func (s *Scanner) NextObjectHeader() (*ObjectHeader, error) {
 
 	switch h.Type {
 	case plumbing.OFSDeltaObject:
-		fmt.Fprintf(os.Stderr, "This is an OFSDeltaObject\n")
+		logger.Debug().Msgf("This is an OFSDeltaObject")
 		no, err := binary.ReadVariableWidthInt(s.r)
 		if err != nil {
 			return nil, err
 		}
 
 		h.OffsetReference = h.Offset - no
-		fmt.Fprintf(os.Stderr, "Its offset reference is %d\n", h.OffsetReference)
+		logger.Debug().Msgf("Its offset reference is %d", h.OffsetReference)
 	case plumbing.REFDeltaObject:
-		fmt.Fprintf(os.Stderr, "This is a REFDeltaObject\n")
+		logger.Debug().Msgf("This is a REFDeltaObject")
 		var err error
 		h.Reference, err = binary.ReadHash(s.r)
 		if err != nil {
 			return nil, err
 		}
 
-		fmt.Fprintf(os.Stderr, "Its reference is %s\n", h.Reference)
+		logger.Debug().Msgf("Its reference is %s", h.Reference)
 	}
 
 	return h, nil
@@ -209,12 +213,14 @@ func (s *Scanner) doPending() error {
 }
 
 func (s *Scanner) discardObjectIfNeeded() error {
+	logger := getLogger()
+
 	if s.pendingObject == nil {
 		return nil
 	}
 
 	h := s.pendingObject
-	fmt.Fprintf(os.Stderr, "Discarding pending object %v\n", h)
+	logger.Debug().Msgf("Discarding pending object %v", h)
 	n, _, err := s.NextObject(stdioutil.Discard)
 	if err != nil {
 		return err
@@ -244,6 +250,8 @@ func (s *Scanner) readObjectTypeAndLength() (plumbing.ObjectType, int64, error) 
 }
 
 func (s *Scanner) readType() (plumbing.ObjectType, byte, error) {
+	logger := getLogger()
+
 	var c byte
 	var err error
 	if c, err = s.r.ReadByte(); err != nil {
@@ -251,7 +259,7 @@ func (s *Scanner) readType() (plumbing.ObjectType, byte, error) {
 	}
 
 	typ := parseType(c)
-	fmt.Fprintf(os.Stderr, "Parsed object type: %s\n", typ)
+	logger.Debug().Msgf("Parsed object type: %s", typ)
 
 	return typ, c, nil
 }
@@ -263,6 +271,8 @@ func parseType(b byte) plumbing.ObjectType {
 // the length is codified in the last 4 bits of the first byte and in
 // the last 7 bits of subsequent bytes.  Last byte has a 0 MSB.
 func (s *Scanner) readLength(first byte) (int64, error) {
+	logger := getLogger()
+
 	length := int64(first & maskFirstLength)
 
 	c := first
@@ -277,7 +287,7 @@ func (s *Scanner) readLength(first byte) (int64, error) {
 		shift += lengthBits
 	}
 
-	fmt.Fprintf(os.Stderr, "Read object length of %d\n", length)
+	logger.Debug().Msgf("Read object length of %d", length)
 	return length, nil
 }
 
@@ -296,6 +306,8 @@ func (s *Scanner) NextObject(w io.Writer) (written int64, crc32 uint32, err erro
 // copyObject writes a non-deltified object
 // from a zlib stream in an object entry in the packfile.
 func (s *Scanner) copyObject(w io.Writer) (n int64, err error) {
+	logger := getLogger()
+
 	if s.zr == nil {
 		var zr io.ReadCloser
 		zr, err = zlib.NewReader(s.r)
@@ -312,7 +324,7 @@ func (s *Scanner) copyObject(w io.Writer) (n int64, err error) {
 
 	defer ioutil.CheckClose(s.zr, &err)
 	buf := byteSlicePool.Get().([]byte)
-	fmt.Fprintf(os.Stderr, "Copying zlib compressed object to writer\n")
+	logger.Debug().Interface("writer", w).Msgf("Copying zlib compressed object to writer")
 	n, err = io.CopyBuffer(w, s.zr, buf)
 	byteSlicePool.Put(buf)
 	return

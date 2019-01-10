@@ -3,7 +3,6 @@ package packp
 import (
 	"fmt"
 	"io"
-	"os"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/pktline"
@@ -16,6 +15,8 @@ var (
 
 // Encode writes the ReferenceUpdateRequest encoding to the stream.
 func (r *ReferenceUpdateRequest) Encode(w io.Writer) error {
+	logger := getLogger()
+	logger.Debug().Msgf("ReferenceUpdateRequest encoding itself to writer")
 	if err := r.validate(); err != nil {
 		return err
 	}
@@ -31,7 +32,7 @@ func (r *ReferenceUpdateRequest) Encode(w io.Writer) error {
 	}
 
 	if r.Packfile != nil {
-		fmt.Fprintf(os.Stderr, "ReferenceUpdateRequest encoding packfile to %+v\n", w)
+		logger.Debug().Msgf("ReferenceUpdateRequest copying packfile to writer")
 		if _, err := io.Copy(w, r.Packfile); err != nil {
 			return err
 		}
@@ -44,17 +45,22 @@ func (r *ReferenceUpdateRequest) Encode(w io.Writer) error {
 
 func (r *ReferenceUpdateRequest) encodeShallow(e *pktline.Encoder,
 	h *plumbing.Hash) error {
+	logger := getLogger()
 
 	if h == nil {
 		return nil
 	}
 
 	objId := []byte(h.String())
+	logger.Debug().Str("shallow", string(shallow)).Str("objID", string(objId)).Msgf(
+		"ReferenceUpdateRequest encoding shallow")
 	return e.Encodef("%s%s", shallow, objId)
 }
 
 func (r *ReferenceUpdateRequest) encodeCommands(e *pktline.Encoder,
 	cmds []*Command, cap *capability.List) error {
+	logger := getLogger()
+	logger.Debug().Msgf("ReferenceUpdateRequest encoding %d command(s)", len(cmds))
 
 	if err := e.Encodef("%s\x00%s",
 		formatCommand(cmds[0]), cap.String()); err != nil {

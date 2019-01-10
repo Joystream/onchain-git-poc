@@ -1,7 +1,6 @@
 package filesystem
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"time"
@@ -90,7 +89,8 @@ func (s *ObjectStorage) NewEncodedObject() plumbing.EncodedObject {
 }
 
 func (s *ObjectStorage) PackfileWriter() (io.WriteCloser, error) {
-	fmt.Fprintf(os.Stderr, "ObjectStorage.PackfileWriter called\n")
+	logger := getLogger()
+	logger.Debug().Msgf("ObjectStorage.PackfileWriter called")
 	if err := s.requireIndex(); err != nil {
 		return nil, err
 	}
@@ -243,6 +243,9 @@ func (s *ObjectStorage) EncodedObjectSize(h plumbing.Hash) (
 // EncodedObject returns the object with the given hash, by searching for it in
 // the packfile and the git object directories.
 func (s *ObjectStorage) EncodedObject(t plumbing.ObjectType, h plumbing.Hash) (plumbing.EncodedObject, error) {
+	logger := getLogger()
+	logger.Debug().Msgf("ObjectStorage encoding object for hash %s", h)
+
 	obj, err := s.getFromUnpacked(h)
 	if err == plumbing.ErrObjectNotFound {
 		obj, err = s.getFromPackfile(h, false)
@@ -251,6 +254,7 @@ func (s *ObjectStorage) EncodedObject(t plumbing.ObjectType, h plumbing.Hash) (p
 	// If the error is still object not found, check if it's a shared object
 	// repository.
 	if err == plumbing.ErrObjectNotFound {
+		logger.Debug().Msgf("ObjectStorage failed to find object for hash %s, searching alternates", h)
 		dotgits, e := s.dir.Alternates()
 		if e == nil {
 			// Create a new object storage with the DotGit(s) and check for the
@@ -298,6 +302,8 @@ func (s *ObjectStorage) DeltaObject(t plumbing.ObjectType,
 }
 
 func (s *ObjectStorage) getFromUnpacked(h plumbing.Hash) (obj plumbing.EncodedObject, err error) {
+	logger := getLogger()
+	logger.Debug().Msgf("ObjectStorage trying to get encoded object from unpacked storage")
 	f, err := s.dir.Object(h)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -322,6 +328,10 @@ func (s *ObjectStorage) getFromUnpacked(h plumbing.Hash) (obj plumbing.EncodedOb
 		return nil, err
 	}
 
+	logger.Debug().
+		Str("Type", t.String()).
+		Int64("Size", size).
+		Msgf("ObjectStorage encoding object from unpacked storage")
 	obj.SetType(t)
 	obj.SetSize(size)
 	w, err := obj.Writer()
@@ -337,18 +347,24 @@ func (s *ObjectStorage) getFromUnpacked(h plumbing.Hash) (obj plumbing.EncodedOb
 // the packfile.
 func (s *ObjectStorage) getFromPackfile(h plumbing.Hash, canBeDelta bool) (
 	plumbing.EncodedObject, error) {
-
+	logger := getLogger()
+	logger.Debug().
+		Bool("canBeDelta", canBeDelta).
+		Msgf("ObjectStorage trying to get hash %s from packfile", h.String())
 	if err := s.requireIndex(); err != nil {
 		return nil, err
 	}
 
 	pack, hash, offset := s.findObjectInPackfile(h)
 	if offset == -1 {
+		logger.Debug().Msgf("Couldn't find object in packfile")
 		return nil, plumbing.ErrObjectNotFound
 	}
 
+	logger.Debug().Msgf("Found object in packfile with hash %s", pack.String())
 	f, err := s.dir.ObjectPack(pack)
 	if err != nil {
+		logger.Debug().Msgf("Couldn't get object from packfile: %s", err)
 		return nil, err
 	}
 
@@ -358,9 +374,11 @@ func (s *ObjectStorage) getFromPackfile(h plumbing.Hash, canBeDelta bool) (
 
 	idx := s.index[pack]
 	if canBeDelta {
+		logger.Debug().Msgf("Decoding delta object")
 		return s.decodeDeltaObjectAt(f, idx, offset, hash)
 	}
 
+	logger.Debug().Msgf("Decoding non-delta object")
 	return s.decodeObjectAt(f, idx, offset)
 }
 
@@ -442,13 +460,17 @@ func (s *ObjectStorage) decodeDeltaObjectAt(
 }
 
 func (s *ObjectStorage) findObjectInPackfile(h plumbing.Hash) (plumbing.Hash, plumbing.Hash, int64) {
+	logger := getLogger()
 	for packfile, index := range s.index {
 		offset, err := index.FindOffset(h)
 		if err == nil {
+			logger.Debug().Msgf("ObjectStorage found object with hash %s in packfile %s",
+				h.String(), packfile)
 			return packfile, h, offset
 		}
 	}
 
+	logger.Debug().Msgf("ObjectStorage failed to find object with hash %s among packfiles", h)
 	return plumbing.ZeroHash, plumbing.ZeroHash, -1
 }
 

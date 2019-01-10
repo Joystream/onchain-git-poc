@@ -89,10 +89,9 @@ accordingly.
 ### Handling of MsgUpdateReferences Messages
 When receiving a MsgUpdateReferences message, a server node will do the following:
 
-1. Build an index of the contained packfile, in the background.
-2. Write the packfile and the corresponding index for repository in KVStore. (How does go-git write
-packfiles for incoming updates? For example, when pushing an update with external references,
-how are these resolved? How are different packfiles consolidated when fetching?)
+1. Build an index of the contained packfiles, in the background.
+2. Write the packfile and the corresponding index for repository in KVStore.
+   Old packfiles aren't touched, only a new packfile and index get added.
 3. Update references for repository in KVStore as mandated by commands in `MsgUpdateReferences`
    message.
 

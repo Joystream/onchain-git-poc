@@ -2,8 +2,10 @@
 package main
 
 import (
-	"log"
+	"os"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/config"
@@ -25,7 +27,10 @@ func main() {
 		SilenceUsage: true,
 		Args:         cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			log.Printf("Pushing ref-specs to '%s': %v\n", args[0], args[1:])
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
+			log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
+			log.Debug().Msgf("Pushing ref-specs to '%s': %v", args[0], args[1:])
 			r, err := git.PlainOpen(".")
 			if err != nil {
 				return err
@@ -57,6 +62,6 @@ func main() {
 	}
 	rootCmd.AddCommand(cmdPush)
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatalf("Unrecoverable error: %v\n", err)
+		log.Fatal().Msgf("Unrecoverable error: %s", err)
 	}
 }

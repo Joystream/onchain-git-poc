@@ -12,15 +12,16 @@ import (
 
 func cmdRoot(_ *cobra.Command, args []string) error {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	logf, err := os.Create("/tmp/gitservice/receive-pack.log")
+	logf, err := os.OpenFile("/tmp/gitservice/receive-pack.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE,
+		0755)
 	if err != nil {
 		return err
 	}
 	defer logf.Close()
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logf})
 
 	dpath := args[0]
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: logf})
 	log.Debug().Msgf("Receiving into '%s', calling file.ServeReceivePack", dpath)
 	if err := file.ServeReceivePack(dpath); err != nil {
 		log.Debug().Msgf("file.ServeReceivePack failed: %s", err)
