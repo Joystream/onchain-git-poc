@@ -1,4 +1,9 @@
-// Go-git server
+// Go-git implementation of git-receive-pack
+//
+// git-receive-pack is a command used by Git servers to implement the receive-pack protocol,
+// i.e. handling pushing of references (which the server is to receive). We implement our own
+// so that we can analyze go-git's behaviour (through instrumentation) and see how it functions
+// when we push data to it (via our gogitclient command).
 package main
 
 import (

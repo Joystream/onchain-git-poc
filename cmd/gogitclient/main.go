@@ -1,4 +1,4 @@
-// Git client that can push references to a go-git server
+// Git client that can push references to a go-git server (protocol: "debugf").
 package main
 
 import (
