@@ -2,13 +2,12 @@ package gitService
 
 import (
 	"encoding/json"
-	"fmt"
-	"os"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
 
@@ -98,15 +97,15 @@ func (msg MsgUpdateReferences) Type() string { return "push" }
 // ValidateBasic Implements Msg.
 func (msg MsgUpdateReferences) ValidateBasic() sdk.Error {
 	if msg.Author.Empty() {
-		fmt.Fprintf(os.Stderr, "MsgUpdateReferences author empty\n")
+		log.Debug().Msgf("MsgUpdateReferences author empty")
 		return sdk.ErrInvalidAddress(msg.Author.String())
 	}
 	if len(msg.URI) == 0 {
-		fmt.Fprintf(os.Stderr, "MsgUpdateReferences URI empty\n")
+		log.Debug().Msgf("MsgUpdateReferences URI empty")
 		return sdk.ErrUnknownRequest("URI cannot be empty")
 	}
 	if len(msg.Commands) == 0 {
-		fmt.Fprintf(os.Stderr, "MsgUpdateReferences commands empty")
+		log.Debug().Msgf("MsgUpdateReferences commands empty")
 		return sdk.ErrUnknownRequest("Commands cannot be empty")
 	}
 
@@ -152,11 +151,11 @@ func (msg MsgRemoveRepository) Type() string { return "removeRepository" }
 // ValidateBasic Implements Msg.
 func (msg MsgRemoveRepository) ValidateBasic() sdk.Error {
 	if msg.Author.Empty() {
-		fmt.Fprintf(os.Stderr, "MsgRemoveRepository author empty\n")
+		log.Debug().Msgf("MsgRemoveRepository author empty")
 		return sdk.ErrInvalidAddress(msg.Author.String())
 	}
 	if len(msg.URI) == 0 {
-		fmt.Fprintf(os.Stderr, "MsgRemoveRepository URI empty\n")
+		log.Debug().Msgf("MsgRemoveRepository URI empty")
 		return sdk.ErrUnknownRequest("URI cannot be empty")
 	}
 

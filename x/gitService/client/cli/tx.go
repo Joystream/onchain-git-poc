@@ -2,8 +2,6 @@ package cli
 
 import (
 	stdContext "context"
-	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/cosmos/cosmos-sdk/client/context"
@@ -12,6 +10,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
 	"github.com/joystream/onchain-git-poc/x/gitService"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 	"gopkg.in/src-d/go-billy.v4/osfs"
 	gogit "gopkg.in/src-d/go-git.v4"
@@ -55,10 +54,10 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 		return nil, err
 	}
 
-	fmt.Fprintf(os.Stderr, "Getting local reference %v\n", refName)
+	log.Debug().Msgf("Getting local reference %v", refName)
 	ref, err := repo.Storer.Reference(*refName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting reference %v: %+v", refName, err)
+		log.Debug().Msgf("Error getting reference %v: %+v", refName, err)
 		return nil, err
 	}
 	hash := ref.Hash()
@@ -66,7 +65,7 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 	// Get the HEAD commit for the ref from the local repository.
 	commit, err := gogitobj.GetCommit(repo.Storer, hash)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting commit for hash %s (%s): %+v\n",
+		log.Debug().Msgf("Error getting commit for hash %s (%s): %+v\n",
 			string(hash[:]), refName, err)
 		return nil, err
 	}
@@ -114,21 +113,21 @@ func getParentCommitsForRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository,
 
 func pushRefs(ctx stdContext.Context, uri string, refs []string, txBldr authtxb.TxBuilder,
 	cliCtx context.CLIContext, author sdk.AccAddress, moduleName string) error {
-	fmt.Fprintf(os.Stderr, "Pushing refs %v from local to blockchain repo '%s'\n", refs, uri)
+	log.Debug().Msgf("Pushing refs %v from local to blockchain repo '%s'", refs, uri)
 
 	// TODO: Support getting repo dir from user
 	localRepoPath, err := filepath.Abs(".git")
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "Using local Git repo at %v\n", localRepoPath)
+	log.Debug().Msgf("Using local Git repo at %v", localRepoPath)
 	localStorage := filesystem.NewStorage(osfs.New(localRepoPath), cache.NewObjectLRUDefault())
 	repo, err := gogit.Open(localStorage, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open local repo: %v\n", err)
+		log.Debug().Msgf("Failed to open local repo: %v", err)
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "Opened local repo successfully\n")
+	log.Debug().Msgf("Opened local repo successfully")
 
 	// Get all commits associated with the refs. This must happen before the
 	// push for us to be able to calculate the difference.
@@ -208,7 +207,7 @@ func GetCmdPushRefs(moduleName string, cdc *codec.Codec) *cobra.Command {
 		Short: "Push Git refs to a certain repository on the blockchain",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(os.Stderr, "Executing CmdPushRefs\n")
+			log.Debug().Msgf("Executing CmdPushRefs")
 			cliCtx := context.NewCLIContext().WithCodec(cdc).WithAccountDecoder(cdc)
 			if err := cliCtx.EnsureAccountExists(); err != nil {
 				return err
@@ -234,18 +233,17 @@ func GetCmdPushRefs(moduleName string, cdc *codec.Codec) *cobra.Command {
 
 func removeRepo(ctx stdContext.Context, uri string, txBldr authtxb.TxBuilder,
 	cliCtx context.CLIContext, author sdk.AccAddress, moduleName string) error {
-	fmt.Fprintf(os.Stderr, "Removing repository '%s' from blockchain\n", uri)
+	log.Debug().Msgf("Removing repository '%s' from blockchain", uri)
 	msg, err := gitService.NewMsgRemoveRepository(uri, author)
 	if err != nil {
-		fmt.Fprintf(os.Stderr,
-			"Joystream client failed to create NewMsgRemoveRepository: %s\n", err)
+		log.Debug().Msgf("Joystream client failed to create NewMsgRemoveRepository: %s", err)
 		return err
 	}
-	fmt.Fprintf(os.Stderr, "Joystream client sending MsgRemoveRepository to server for repo '%s'\n",
+	log.Debug().Msgf("Joystream client sending MsgRemoveRepository to server for repo '%s'",
 		msg.URI)
 
 	if err := utils.CompleteAndBroadcastTxCli(txBldr, cliCtx, []sdk.Msg{msg}); err != nil {
-		fmt.Fprintf(os.Stderr, "Sending MsgRemoveRepository to node failed: %s\n", err)
+		log.Debug().Msgf("Sending MsgRemoveRepository to node failed: %s", err)
 		return err
 	}
 
@@ -259,7 +257,7 @@ func GetCmdRemoveRepo(moduleName string, cdc *codec.Codec) *cobra.Command {
 		Short: "Remove a Git repository on the blockchain",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintf(os.Stderr, "Executing CmdRemoveRepo\n")
+			log.Debug().Msgf("Executing CmdRemoveRepo")
 			cliCtx := context.NewCLIContext().WithCodec(cdc).WithAccountDecoder(cdc)
 			if err := cliCtx.EnsureAccountExists(); err != nil {
 				return err

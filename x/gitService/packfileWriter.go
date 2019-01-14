@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/idxfile"
 	"gopkg.in/src-d/go-git.v4/plumbing/format/packfile"
@@ -113,7 +114,7 @@ func getPackfileWriter(store sdk.KVStore, repoURI string) (io.WriteCloser, error
 	}
 
 	if err := pw.requireIndex(); err != nil {
-		fmt.Fprintf(os.Stderr, "PackFileWriter - requireIndex failed: %s\n", err)
+		log.Debug().Msgf("PackFileWriter - requireIndex failed: %s", err)
 		fw.Close()
 		fr.Close()
 		return nil, err
@@ -151,26 +152,26 @@ type PackWriter struct {
 
 // buildIndex parses the packfile as it gets written and builds an index continuously
 func (pw *PackWriter) buildIndex() {
-	fmt.Fprintf(os.Stderr, "Building packfile index\n")
+	log.Debug().Msgf("Building packfile index")
 	s := packfile.NewScanner(pw.synced)
 	pw.idxWriter = new(idxfile.Writer)
 	var err error
 	pw.parser, err = packfile.NewParser(s, pw.idxWriter)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Creating parser failed: %s\n", err)
+		log.Debug().Msgf("Creating parser failed: %s", err)
 		pw.result <- err
 		return
 	}
 
 	checksum, err := pw.parser.Parse()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Parsing packfile failed: %s\n", err)
+		log.Debug().Msgf("Parsing packfile failed: %s", err)
 		pw.result <- err
 		return
 	}
 
 	pw.checksum = checksum
-	fmt.Fprintf(os.Stderr, "Finished parsing packfile\n")
+	log.Debug().Msgf("Finished parsing packfile")
 	pw.result <- nil
 }
 
@@ -178,30 +179,30 @@ func (pw *PackWriter) buildIndex() {
 // with a packfile.ErrEmptyPackfile, this means that nothing was written so we
 // ignore the error
 func (pw *PackWriter) waitBuildIndex() error {
-	fmt.Fprintf(os.Stderr, "Waiting for index to finish building\n")
+	log.Debug().Msgf("Waiting for index to finish building")
 	err := <-pw.result
 	if err == packfile.ErrEmptyPackfile {
-		fmt.Fprintf(os.Stderr, "Index finished building due to empty packfile\n")
+		log.Debug().Msgf("Index finished building due to empty packfile")
 		return nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Index finished building\n")
+	log.Debug().Msgf("Index finished building")
 	return err
 }
 
 func (pw *PackWriter) Write(p []byte) (int, error) {
-	fmt.Fprintf(os.Stderr, "Writing %d bytes to packfile\n", len(p))
+	log.Debug().Msgf("Writing %d bytes to packfile", len(p))
 	return pw.synced.Write(p)
 }
 
 // Close closes all the file descriptors and save the final packfile, if nothing
 // was written, the tempfiles are deleted without writing a packfile.
 func (pw *PackWriter) Close() error {
-	fmt.Fprintf(os.Stderr, "Packwriter closing\n")
+	log.Debug().Msgf("Packwriter closing")
 
 	defer func() {
 		if pw.Notify != nil && pw.idxWriter != nil && pw.idxWriter.Finished() {
-			fmt.Fprintf(os.Stderr, "Calling Notify hook\n")
+			log.Debug().Msgf("Calling Notify hook")
 			pw.Notify(pw.checksum, pw.idxWriter)
 		}
 
@@ -228,26 +229,26 @@ func (pw *PackWriter) Close() error {
 }
 
 func (pw *PackWriter) save() error {
-	fmt.Fprintf(os.Stderr, "Packwriter saving packfile and index\n")
+	log.Debug().Msgf("Packwriter saving packfile and index")
 	idxBuf := &bytes.Buffer{}
 
 	idx, err := pw.idxWriter.Index()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Packwriter - getting index failed: %s\n", err)
+		log.Debug().Msgf("Packwriter - getting index failed: %s", err)
 		return err
 	}
 
 	e := idxfile.NewEncoder(idxBuf)
 	if _, err := e.Encode(idx); err != nil {
-		fmt.Fprintf(os.Stderr, "Packwriter - encoding index failed: %s\n", err)
+		log.Debug().Msgf("Packwriter - encoding index failed: %s", err)
 		return err
 	}
 
 	packfilePath := fmt.Sprintf("%s/objects/pack/pack-%s.pack", pw.repoURI, pw.checksum)
-	fmt.Fprintf(os.Stderr, "Saving packfile to '%s'\n", packfilePath)
+	log.Debug().Msgf("Saving packfile to '%s'", packfilePath)
 	packfileBytes, err := stdIOUtil.ReadFile(pw.fw.Name())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Reading temporary packfile failed: %s\n", err)
+		log.Debug().Msgf("Reading temporary packfile failed: %s", err)
 		return err
 	}
 	os.Remove(pw.fw.Name())
@@ -255,7 +256,7 @@ func (pw *PackWriter) save() error {
 	pw.store.Set([]byte(packfilePath), packfileBytes)
 
 	idxPath := fmt.Sprintf("%s/objects/pack/pack-%s.idx", pw.repoURI, pw.checksum)
-	fmt.Fprintf(os.Stderr, "Saving packfile index to '%s'\n", idxPath)
+	log.Debug().Msgf("Saving packfile index to '%s'", idxPath)
 	pw.store.Set([]byte(idxPath), idxBuf.Bytes())
 
 	return nil
@@ -263,19 +264,19 @@ func (pw *PackWriter) save() error {
 
 // writePackfile writes a packfile and its index to a repository
 func writePackfile(store sdk.KVStore, msg MsgUpdateReferences) (err error) {
-	fmt.Fprintf(os.Stderr, "Keeper - writing packfile and index to %s/objects/pack/\n", msg.URI)
+	log.Debug().Msgf("Keeper - writing packfile and index to %s/objects/pack/", msg.URI)
 	pw, err := getPackfileWriter(store, msg.URI)
 	if err != nil {
 		return err
 	}
 
 	defer ioutil.CheckClose(pw, &err)
-	fmt.Fprintf(os.Stderr, "Copying packfile to packfile writer, %d bytes\n",
+	log.Debug().Msgf("Copying packfile to packfile writer, %d bytes\n",
 		len(msg.Packfile))
 	buf := bytes.NewBuffer(msg.Packfile)
-	fmt.Fprintf(os.Stderr, "Length of packfile buffer: %d\n", buf.Len())
+	log.Debug().Msgf("Length of packfile buffer: %d", buf.Len())
 	_, err = io.Copy(pw, buf)
-	fmt.Fprintf(os.Stderr, "Finished copying to packfile writer\n")
+	log.Debug().Msgf("Finished copying to packfile writer")
 
 	return nil
 }

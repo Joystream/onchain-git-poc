@@ -2,9 +2,9 @@ package gitService
 
 import (
 	"fmt"
-	"os"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/rs/zerolog/log"
 )
 
 // NewHandler returns a handler for "gitService" type messages.
@@ -23,7 +23,7 @@ func NewHandler(keeper Keeper) sdk.Handler {
 }
 
 func handleMsgUpdateReferences(ctx sdk.Context, keeper Keeper, msg MsgUpdateReferences) sdk.Result {
-	fmt.Fprintf(os.Stderr, "Handling MsgUpdateReferences - author: '%s', repo: '%s'\n",
+	log.Debug().Msgf("Handling MsgUpdateReferences - author: '%s', repo: '%s'",
 		msg.Author, msg.URI)
 	if err := keeper.UpdateReferences(ctx, msg); err != nil {
 		return sdk.Result{
@@ -36,7 +36,7 @@ func handleMsgUpdateReferences(ctx sdk.Context, keeper Keeper, msg MsgUpdateRefe
 }
 
 func handleMsgRemoveRepository(ctx sdk.Context, keeper Keeper, msg MsgRemoveRepository) sdk.Result {
-	fmt.Fprintf(os.Stderr, "Handling MsgRemoveRepo - author: '%s', repo: '%s'\n",
+	log.Debug().Msgf("Handling MsgRemoveRepo - author: '%s', repo: '%s'",
 		msg.Author, msg.URI)
 	if err := keeper.RemoveRepository(ctx, msg); err != nil {
 		return sdk.Result{

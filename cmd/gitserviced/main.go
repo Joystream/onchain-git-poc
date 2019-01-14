@@ -106,7 +106,8 @@ func InitCmd(ctx *server.Context, cdc *codec.Codec) *cobra.Command {
 				return err
 			}
 
-			if err = gaiaInit.ExportGenesisFile(genFile, chainID, []tmtypes.GenesisValidator{validator}, appState); err != nil {
+			if err = gaiaInit.ExportGenesisFile(genFile, chainID,
+				[]tmtypes.GenesisValidator{validator}, appState); err != nil {
 				return err
 			}
 

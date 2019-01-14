@@ -3,9 +3,9 @@ package gitService
 import (
 	encJson "encoding/json"
 	"fmt"
-	"os"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/rs/zerolog/log"
 	abci "github.com/tendermint/tendermint/abci/types"
 )
 
@@ -28,7 +28,7 @@ func NewQuerier(keeper Keeper) sdk.Querier {
 // nolint: unparam
 func queryListRefs(ctx sdk.Context, path []string, req abci.RequestQuery, keeper Keeper) (
 	[]byte, sdk.Error) {
-	fmt.Fprintf(os.Stderr, "queryListRefs: %v\n", path)
+	log.Debug().Msgf("queryListRefs: %v", path)
 	refs := keeper.ListRefs(ctx, path[0], path[1])
 	bytes, err := encJson.Marshal(refs)
 	if err != nil {
@@ -40,13 +40,13 @@ func queryListRefs(ctx sdk.Context, path []string, req abci.RequestQuery, keeper
 
 func queryAdvertisedReferences(ctx sdk.Context, path []string, req abci.RequestQuery, keeper Keeper) (
 	[]byte, sdk.Error) {
-	fmt.Fprintf(os.Stderr, "Querying for advertised references\n")
+	log.Debug().Msgf("Querying for advertised references")
 	advRefs, err := keeper.GetAdvertisedReferences(ctx, path[0], path[1])
 	if err != nil {
 		return nil, sdk.ErrInternal(err.Error())
 	}
 
-	fmt.Fprintf(os.Stderr, "Returning advertised references: %+v\n", advRefs)
+	log.Debug().Msgf("Returning advertised references: %+v", advRefs)
 	bytes, err := encJson.Marshal(advRefs)
 	if err != nil {
 		return nil, sdk.ErrInternal(err.Error())
