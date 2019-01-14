@@ -3,9 +3,7 @@ package packfile
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
-	"os"
 	"runtime/debug"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -100,7 +98,6 @@ func (p *Parser) forEachObserver(f func(o Observer) error) error {
 
 func (p *Parser) onHeader(count uint32) error {
 	return p.forEachObserver(func(o Observer) error {
-		// fmt.Fprintf(os.Stderr, "Calling onHeader of observer %v\n", o)
 		return o.OnHeader(count)
 	})
 }
@@ -134,7 +131,8 @@ func (p *Parser) onFooter(h plumbing.Hash) error {
 
 // Parse starts the decoding phase of the packfile.
 func (p *Parser) Parse() (plumbing.Hash, error) {
-	fmt.Fprintf(os.Stderr, "Commencing parsing\n")
+	logger := getLogger()
+	logger.Debug().Msgf("Commencing parsing")
 	if err := p.init(); err != nil {
 		return plumbing.ZeroHash, err
 	}
@@ -149,7 +147,7 @@ func (p *Parser) Parse() (plumbing.Hash, error) {
 		return plumbing.ZeroHash, err
 	}
 
-	fmt.Fprintf(os.Stderr, "Parser - The packfile checksum is %s\n", p.checksum)
+	logger.Debug().Msgf("Parser - The packfile checksum is %s", p.checksum)
 	if err := p.resolveDeltas(); err != nil {
 		return plumbing.ZeroHash, err
 	}
@@ -180,7 +178,8 @@ func (p *Parser) init() error {
 }
 
 func (p *Parser) indexObjects() error {
-	fmt.Printf("Parser indexing %d objects\n", p.count)
+	logger := getLogger()
+	logger.Debug().Msgf("Parser indexing %d objects", p.count)
 	buf := new(bytes.Buffer)
 
 	for i := uint32(0); i < p.count; i++ {
@@ -195,7 +194,7 @@ func (p *Parser) indexObjects() error {
 		var ota *objectInfo
 		switch t := oh.Type; t {
 		case plumbing.OFSDeltaObject:
-			fmt.Fprintf(os.Stderr, "Parser encountered OFSDeltaObject\n")
+			logger.Debug().Msgf("Parser encountered OFSDeltaObject")
 			delta = true
 
 			parent, ok := p.oiByOffset[oh.OffsetReference]
@@ -203,16 +202,15 @@ func (p *Parser) indexObjects() error {
 				return plumbing.ErrObjectNotFound
 			}
 
-			fmt.Fprintf(os.Stderr, "Parser - Parent object hash: %s\n", parent.SHA1)
+			logger.Debug().Msgf("Parser - Parent object hash: %s", parent.SHA1)
 			ota = newDeltaObject(oh.Offset, oh.Length, t, parent)
-			fmt.Fprintf(os.Stderr, "Parser appending delta object to parent's children\n")
+			logger.Debug().Msgf("Parser appending delta object to parent's children")
 			parent.Children = append(parent.Children, ota)
 		case plumbing.REFDeltaObject:
-			fmt.Fprintf(os.Stderr, "Parser encountered REFDeltaObject\n")
+			logger.Debug().Msgf("Parser encountered REFDeltaObject")
 			delta = true
 			parent, ok := p.oiByHash[oh.Reference]
 			if !ok {
-				fmt.Fprintf(os.Stderr, "Parser - Parent hash: %s, external reference\n", parent.SHA1)
 				// can't find referenced object in this pack file
 				// this must be a "thin" pack.
 				parent = &objectInfo{ //Placeholder parent
@@ -223,15 +221,15 @@ func (p *Parser) indexObjects() error {
 				}
 				p.oiByHash[oh.Reference] = parent
 			} else {
-				fmt.Fprintf(os.Stderr, "Parser - Parent hash: %s\n", parent.SHA1)
+				logger.Debug().Msgf("Parser - Parent hash: %s", parent.SHA1)
 			}
 
 			ota = newDeltaObject(oh.Offset, oh.Length, t, parent)
-			fmt.Fprintf(os.Stderr, "Parser appending delta object to parent's children\n")
+			logger.Debug().Msgf("Parser appending delta object to parent's children")
 			parent.Children = append(parent.Children, ota)
 
 		default:
-			fmt.Fprintf(os.Stderr, "Parser encountered base object\n")
+			logger.Debug().Msgf("Parser encountered base object")
 			ota = newBaseObject(oh.Offset, oh.Length, t)
 		}
 
@@ -243,11 +241,11 @@ func (p *Parser) indexObjects() error {
 		ota.Crc32 = crc
 		ota.Length = oh.Length
 
-		fmt.Fprintf(os.Stderr, "Parser finished getting object bytes\n")
+		logger.Debug().Msgf("Parser finished getting object bytes")
 		data := buf.Bytes()
 		if !delta {
 			sha1, err := getSHA1(ota.Type, data)
-			fmt.Fprintf(os.Stderr, "Parser - This is not a delta object, its hash is %s\n", sha1)
+			logger.Debug().Msgf("Parser - This is not a delta object, its hash is %s", sha1)
 			if err != nil {
 				return err
 			}
@@ -257,51 +255,50 @@ func (p *Parser) indexObjects() error {
 		}
 
 		if p.storage != nil && !delta {
-			fmt.Fprintf(os.Stderr, "Parser writing object of type %s to storage: %s\n", ota.Type, ota.SHA1)
+			logger.Debug().Msgf("Parser writing object of type %s to storage: %s", ota.Type, ota.SHA1)
 			obj := new(plumbing.MemoryObject)
 			obj.SetSize(oh.Length)
 			obj.SetType(oh.Type)
 			if _, err := obj.Write(data); err != nil {
-				fmt.Fprintf(os.Stderr, "Parser writing data to memory object failed: %s\n", err)
+				logger.Debug().Msgf("Parser writing data to memory object failed: %s", err)
 				return err
 			}
 
-			fmt.Fprintf(os.Stderr, "Parser writing object to storage\n")
+			logger.Debug().Msgf("Parser writing object to storage")
 			if _, err := p.storage.SetEncodedObject(obj); err != nil {
-				fmt.Fprintf(os.Stderr, "Parser writing object to storage failed: %s\n", err)
+				logger.Debug().Msgf("Parser writing object to storage failed: %s", err)
 				return err
 			}
 		} else if delta {
-			fmt.Fprintf(os.Stderr, "Parser not writing object to storage because it's a delta\n")
+			logger.Debug().Msgf("Parser not writing object to storage because it's a delta")
 		} else {
-			fmt.Fprintf(os.Stderr, "Parser not writing object to storage because there is no storage\n")
+			logger.Debug().Msgf("Parser not writing object to storage because there is no storage")
 		}
 
 		if delta && !p.scanner.IsSeekable {
-			fmt.Fprintf(os.Stderr, "Parser - scanner isn't seekable, copying data into p.deltas[%d]\n",
-				oh.Offset)
+			logger.Debug().Msgf("Parser - scanner isn't seekable, copying data into p.deltas[%d]", oh.Offset)
 			p.deltas[oh.Offset] = make([]byte, len(data))
 			copy(p.deltas[oh.Offset], data)
 		}
 
-		fmt.Fprintf(os.Stderr, "Parser registering object info at p.oiByOffset[%d] and p.oi[%d]\n",
-			oh.Offset, i)
+		logger.Debug().Msgf("Parser registering object info at p.oiByOffset[%d] and p.oi[%d]", oh.Offset, i)
 		p.oiByOffset[oh.Offset] = ota
 		p.oi[i] = ota
 	}
 
-	fmt.Fprintf(os.Stderr, "Parser finished indexing objects\n")
+	logger.Debug().Msgf("Parser finished indexing objects")
 	return nil
 }
 
 func (p *Parser) resolveDeltas() error {
-	fmt.Fprintf(os.Stderr, "Parser resolving deltas of %d objects\n", len(p.oi))
+	logger := getLogger()
+	logger.Debug().Msgf("Parser resolving deltas of %d objects", len(p.oi))
 	for _, obj := range p.oi {
-		fmt.Fprintf(os.Stderr, "Parser getting content of object %s (disk type: %s, type: %s)\n",
+		logger.Debug().Msgf("Parser getting content of object %s (disk type: %s, type: %s)",
 			obj.SHA1, obj.DiskType, obj.Type)
 		content, err := p.get(obj)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Parser failed to get content of object %s\n", obj.SHA1)
+			logger.Debug().Msgf("Parser failed to get content of object %s", obj.SHA1)
 			return err
 		}
 
@@ -314,7 +311,7 @@ func (p *Parser) resolveDeltas() error {
 		}
 
 		if !obj.IsDelta() && len(obj.Children) > 0 {
-			fmt.Fprintf(os.Stderr, "Parser handling %d children of non-delta object\n", len(obj.Children))
+			logger.Debug().Msgf("Parser handling %d children of non-delta object", len(obj.Children))
 			for _, child := range obj.Children {
 				if _, err := p.resolveObject(child, content); err != nil {
 					return err
@@ -323,7 +320,7 @@ func (p *Parser) resolveDeltas() error {
 
 			// Remove the delta from the cache.
 			if obj.DiskType.IsDelta() && !p.scanner.IsSeekable {
-				fmt.Fprintf(os.Stderr, "Parser removing object from delta cache\n")
+				logger.Debug().Msgf("Parser removing object from delta cache")
 				delete(p.deltas, obj.Offset)
 			}
 		}
@@ -333,6 +330,8 @@ func (p *Parser) resolveDeltas() error {
 }
 
 func (p *Parser) get(o *objectInfo) (b []byte, err error) {
+	logger := getLogger()
+
 	var ok bool
 	if !o.ExternalRef { // skip cache check for placeholder parents
 		b, ok = p.cache.Get(o.Offset)
@@ -364,14 +363,15 @@ func (p *Parser) get(o *objectInfo) (b []byte, err error) {
 
 	if o.ExternalRef {
 		// we were not able to resolve a ref in a thin pack
-		fmt.Fprintf(os.Stderr, "Parser unable to resolve reference delta of object '%s'\n", o.SHA1)
+		logger := getLogger()
+		logger.Debug().Msgf("Parser unable to resolve reference delta of object '%s'", o.SHA1)
 		debug.PrintStack()
 		return nil, ErrReferenceDeltaNotFound
 	}
 
 	var data []byte
 	if o.DiskType.IsDelta() {
-		fmt.Fprintf(os.Stderr, "Parser getting parent of object %s: %s\n", o.SHA1, o.Parent.SHA1)
+		logger.Debug().Msgf("Parser getting parent of object %s: %s", o.SHA1, o.Parent.SHA1)
 		base, err := p.get(o.Parent)
 		if err != nil {
 			return nil, err
@@ -399,11 +399,13 @@ func (p *Parser) resolveObject(
 	o *objectInfo,
 	base []byte,
 ) ([]byte, error) {
+	logger := getLogger()
+
 	if !o.DiskType.IsDelta() {
 		return nil, nil
 	}
 
-	fmt.Fprintf(os.Stderr, "Parser resolving delta object with hash %s\n", o.SHA1)
+	logger.Debug().Msgf("Parser resolving delta object with hash %s", o.SHA1)
 	data, err := p.readData(o)
 	if err != nil {
 		return nil, err
@@ -422,7 +424,7 @@ func (p *Parser) resolveObject(
 			return nil, err
 		}
 
-		fmt.Fprintf(os.Stderr, "Parser setting patched object in storage; hash: %s, type: %s\n", obj.Hash(),
+		logger.Debug().Msgf("Parser setting patched object in storage; hash: %s, type: %s", obj.Hash(),
 			obj.Type())
 		if _, err := p.storage.SetEncodedObject(obj); err != nil {
 			return nil, err
@@ -459,7 +461,9 @@ func (p *Parser) readData(o *objectInfo) ([]byte, error) {
 }
 
 func applyPatchBase(ota *objectInfo, data, base []byte) ([]byte, error) {
-	fmt.Fprintf(os.Stderr, "Parser applying patch to base for delta object\n")
+	logger := getLogger()
+
+	logger.Debug().Msgf("Parser applying patch to base for delta object")
 	patched, err := PatchDelta(base, data)
 	if err != nil {
 		return nil, err

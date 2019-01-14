@@ -3,7 +3,6 @@ package dotgit
 import (
 	"fmt"
 	"io"
-	"os"
 	"sync/atomic"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -56,7 +55,8 @@ func newPackWrite(fs billy.Filesystem) (*PackWriter, error) {
 }
 
 func (w *PackWriter) buildIndex() {
-	fmt.Fprintf(os.Stderr, "Building packfile index\n")
+	logger := getLogger()
+	logger.Debug().Msgf("Building packfile index")
 	s := packfile.NewScanner(w.synced)
 	w.writer = new(idxfile.Writer)
 	var err error
@@ -89,7 +89,8 @@ func (w *PackWriter) waitBuildIndex() error {
 }
 
 func (w *PackWriter) Write(p []byte) (int, error) {
-	fmt.Fprintf(os.Stderr, "Writing to packfile\n")
+	logger := getLogger()
+	logger.Debug().Msgf("Writing to packfile")
 	return w.synced.Write(p)
 }
 
@@ -132,6 +133,7 @@ func (w *PackWriter) clean() error {
 }
 
 func (w *PackWriter) save() error {
+	logger := getLogger()
 	base := w.fs.Join(objectsPath, packPath, fmt.Sprintf("pack-%s", w.checksum))
 	idx, err := w.fs.Create(fmt.Sprintf("%s.idx", base))
 	if err != nil {
@@ -147,7 +149,7 @@ func (w *PackWriter) save() error {
 	}
 
 	newFpath := fmt.Sprintf("%s.pack", base)
-	fmt.Fprintf(os.Stderr, "Saving packfile to '%s'\n", newFpath)
+	logger.Debug().Msgf("Saving packfile to '%s'\n", newFpath)
 	return w.fs.Rename(w.fw.Name(), newFpath)
 }
 

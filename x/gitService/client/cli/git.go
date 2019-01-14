@@ -191,11 +191,11 @@ func referencesToHashes(refs storer.ReferenceStorer) ([]plumbing.Hash, error) {
 
 // pushToBlockchain sends a message to the server to update a set of references
 func pushToBlockChain(ctx context.Context, uri string, refSpecs []gogitcfg.RefSpec,
-	repo *gogit.Repository, advRefs *packp.AdvRefs, cliCtx cosmosContext.CLIContext,
-	txBldr authtxb.TxBuilder, author sdk.AccAddress) error {
+	repo *gogit.Repository, cliCtx cosmosContext.CLIContext,
+	txBldr authtxb.TxBuilder, author sdk.AccAddress, moduleName string) error {
 	// TODO: Verify that URL is of joystream protocol
 	fmt.Fprintf(os.Stderr, "Pushing '%s' to blockchain at '%s'\n", refSpecs[0], uri)
-	c, err := newJoystreamClient(uri, cliCtx, txBldr, author)
+	c, err := newJoystreamClient(uri, cliCtx, txBldr, author, moduleName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create client for URL '%s'\n", uri)
 		return err
@@ -210,6 +210,10 @@ func pushToBlockChain(ctx context.Context, uri string, refSpecs []gogitcfg.RefSp
 	}
 	defer ioutil.CheckClose(session, &err)
 
+	advRefs, err := session.AdvertisedReferences()
+	if err != nil {
+		return err
+	}
 	remoteRefs, err := advRefs.AllReferences()
 	if err != nil {
 		return err
@@ -434,6 +438,7 @@ func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 			cmd.Name, cmd.Old, cmd.New)
 	}
 	req.Commands = append(req.Commands, cmd)
+
 	return nil
 }
 

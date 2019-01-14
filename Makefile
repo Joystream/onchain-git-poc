@@ -22,3 +22,5 @@ install:
 	go install ./cmd/gitserviced
 	go install ./cmd/gitservicecli
 	go install ./cmd/git-remote-joystream
+	go install ./cmd/gogitclient
+	go install ./cmd/gogit-receive-pack

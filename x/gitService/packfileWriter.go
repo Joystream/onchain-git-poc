@@ -49,7 +49,7 @@ func (pw *PackWriter) requireIndex() error {
 
 // loadIdx loads an index corresponding to a packfile
 func (pw *PackWriter) loadIdx(h plumbing.Hash) (err error) {
-	path := fmt.Sprintf("%s/objects/packs/pack-%s.idx", pw.repoURI, h)
+	path := fmt.Sprintf("%s/objects/pack/pack-%s.idx", pw.repoURI, h)
 	b := pw.store.Get([]byte(path))
 	if b == nil {
 		return fmt.Errorf("Couldn't get index %s", path)

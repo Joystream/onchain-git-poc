@@ -44,6 +44,9 @@ func (mc ModuleClient) GetTxCmd() *cobra.Command {
 	govTxCmd.AddCommand(client.PostCommands(
 		gitServiceCmd.GetCmdPushRefs(mc.moduleName, mc.cdc),
 	)...)
+	govTxCmd.AddCommand(client.PostCommands(
+		gitServiceCmd.GetCmdRemoveRepo(mc.moduleName, mc.cdc),
+	)...)
 
 	return govTxCmd
 }

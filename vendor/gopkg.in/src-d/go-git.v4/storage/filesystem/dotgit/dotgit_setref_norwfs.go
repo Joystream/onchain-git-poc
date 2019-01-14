@@ -17,8 +17,7 @@ import (
 // making it compatible with these simple filesystems. This is usually not
 // a problem as they should be accessed by only one process at a time.
 func (d *DotGit) setRef(fileName, content string, old *plumbing.Reference) error {
-	fmt.Fprintf(os.Stderr, "Setting reference, filename: '%s', content: '%s'\n", fileName,
-		content)
+	logger.Debug().Msgf("Setting reference, filename: '%s', content: '%s'\n", fileName, content)
 	_, err := d.fs.Stat(fileName)
 	if err == nil && old != nil {
 		fRead, err := d.fs.Open(fileName)
@@ -38,7 +37,7 @@ func (d *DotGit) setRef(fileName, content string, old *plumbing.Reference) error
 		}
 	}
 
-	fmt.Fprintf(os.Stderr, "Creating file '%s' and writing content to it\n", fileName)
+	logger.Debug().Msgf("Creating file '%s' and writing content to it\n", fileName)
 	f, err := d.fs.Create(fileName)
 	if err != nil {
 		return err

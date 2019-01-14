@@ -41,7 +41,12 @@ func queryListRefs(ctx sdk.Context, path []string, req abci.RequestQuery, keeper
 func queryAdvertisedReferences(ctx sdk.Context, path []string, req abci.RequestQuery, keeper Keeper) (
 	[]byte, sdk.Error) {
 	fmt.Fprintf(os.Stderr, "Querying for advertised references\n")
-	advRefs := keeper.GetAdvertisedReferences(ctx, path[0], path[1])
+	advRefs, err := keeper.GetAdvertisedReferences(ctx, path[0], path[1])
+	if err != nil {
+		return nil, sdk.ErrInternal(err.Error())
+	}
+
+	fmt.Fprintf(os.Stderr, "Returning advertised references: %+v\n", advRefs)
 	bytes, err := encJson.Marshal(advRefs)
 	if err != nil {
 		return nil, sdk.ErrInternal(err.Error())

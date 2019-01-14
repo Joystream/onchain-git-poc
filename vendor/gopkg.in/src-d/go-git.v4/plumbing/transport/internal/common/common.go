@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	stdioutil "io/ioutil"
-	"os"
 	"strings"
 	"time"
 
@@ -165,6 +164,8 @@ func (c *client) listenFirstError(r io.Reader) chan string {
 
 // AdvertisedReferences retrieves the advertised references from the server.
 func (s *session) AdvertisedReferences() (*packp.AdvRefs, error) {
+	logger := getLogger()
+
 	if s.advRefs != nil {
 		return s.advRefs, nil
 	}
@@ -178,6 +179,7 @@ func (s *session) AdvertisedReferences() (*packp.AdvRefs, error) {
 
 	transport.FilterUnsupportedCapabilities(ar.Capabilities)
 	s.advRefs = ar
+	logger.Debug().Msgf("Transport decoded advertised references from server: %+v\n", ar)
 	return ar, nil
 }
 
@@ -284,7 +286,9 @@ func (s *session) onError(err error) {
 }
 
 func (s *session) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateRequest) (*packp.ReportStatus, error) {
-	fmt.Fprintf(os.Stderr, "ReceivePack invoked\n")
+	logger := getLogger()
+
+	logger.Debug().Msgf("ReceivePack invoked")
 	if _, err := s.AdvertisedReferences(); err != nil {
 		return nil, err
 	}
@@ -310,8 +314,10 @@ func (s *session) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateReq
 
 	var d *sideband.Demuxer
 	if req.Capabilities.Supports(capability.Sideband64k) {
+		logger.Debug().Msgf("Transport demuxing with Sideband64k")
 		d = sideband.NewDemuxer(sideband.Sideband64k, r)
 	} else if req.Capabilities.Supports(capability.Sideband) {
+		logger.Debug().Msgf("Transport demuxing with Sideband")
 		d = sideband.NewDemuxer(sideband.Sideband, r)
 	}
 	if d != nil {

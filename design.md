@@ -54,7 +54,8 @@ The MsgUpdateReferences message type contains the following fields:
 The `push-refs` sub-command computes the updates to send to the server (as encoded in the
 `MsgUpdateReferences` message) according to a certain algorithm:
 
-1. Get advertised references from server.
+1. Get advertised references from server, where the server determines which references the
+   repository has and what is the repository's head.
 2. Determine references existing in local repository.
 3. Given provided "refspecs" (specifications from Git on references to add/update/delete),
    produce commands for adding, updating and deleting references on the server.
@@ -88,8 +89,9 @@ accordingly.
 ### Handling of MsgUpdateReferences Messages
 When receiving a MsgUpdateReferences message, a server node will do the following:
 
-1. Build an index of the contained packfile, in the background.
+1. Build an index of the contained packfiles, in the background.
 2. Write the packfile and the corresponding index for repository in KVStore.
+   Old packfiles aren't touched, only a new packfile and index get added.
 3. Update references for repository in KVStore as mandated by commands in `MsgUpdateReferences`
    message.
 

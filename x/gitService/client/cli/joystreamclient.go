@@ -3,9 +3,11 @@ package cli
 import (
 	"bytes"
 	"context"
+	encJson "encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 
 	cosmosContext "github.com/cosmos/cosmos-sdk/client/context"
 	"github.com/cosmos/cosmos-sdk/client/utils"
@@ -19,14 +21,21 @@ import (
 )
 
 type joystreamClient struct {
-	ep     *transport.Endpoint
-	txBldr authtxb.TxBuilder
-	cliCtx cosmosContext.CLIContext
-	author sdk.AccAddress
+	ep         *transport.Endpoint
+	txBldr     authtxb.TxBuilder
+	cliCtx     cosmosContext.CLIContext
+	author     sdk.AccAddress
+	moduleName string
 }
 
+var reRepoURI = regexp.MustCompile("^[^/]+/[^/]+$")
+
 func newJoystreamClient(uri string, cliCtx cosmosContext.CLIContext, txBldr authtxb.TxBuilder,
-	author sdk.AccAddress) (*joystreamClient, error) {
+	author sdk.AccAddress, moduleName string) (*joystreamClient, error) {
+	if !reRepoURI.MatchString(uri) {
+		return nil, fmt.Errorf("Repo URI on invalid format: '%s'", uri)
+	}
+
 	url := fmt.Sprintf("joystream://blockchain/%s", uri)
 	ep, err := transport.NewEndpoint(url)
 	if err != nil {
@@ -34,10 +43,11 @@ func newJoystreamClient(uri string, cliCtx cosmosContext.CLIContext, txBldr auth
 		return nil, err
 	}
 	return &joystreamClient{
-		ep:     ep,
-		txBldr: txBldr,
-		cliCtx: cliCtx,
-		author: author,
+		ep:         ep,
+		txBldr:     txBldr,
+		cliCtx:     cliCtx,
+		author:     author,
+		moduleName: moduleName,
 	}, nil
 }
 
@@ -72,9 +82,22 @@ func (c *joystreamClient) NewReceivePackSession(ep *transport.Endpoint,
 
 func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
 	fmt.Fprintf(os.Stderr, "Joystream client getting advertised references\n")
-	// Make call to server to get advertised references
-	advRefs := packp.NewAdvRefs()
-	fmt.Fprintf(os.Stderr, "Joystream client got advertised references: %v\n", advRefs)
+
+	queryPath := fmt.Sprintf("custom/%s/advertisedReferences/%s", s.client.moduleName,
+		s.client.ep.Path[1:])
+	fmt.Fprintf(os.Stderr, "Joystream client making query, path: '%s'", queryPath)
+	res, err := s.client.cliCtx.QueryWithData(queryPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var advRefs *packp.AdvRefs
+	if err := encJson.Unmarshal(res, &advRefs); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(os.Stderr, "Joystream client got advertised references from server: %+v\n",
+		advRefs.References)
+
 	return advRefs, nil
 }
 
@@ -99,7 +122,9 @@ func (s *rpSession) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateR
 		return s.reportStatus(), err
 	}
 
-	msg, err := gitService.NewMsgUpdateReferences(s.endpoint.Path[1:], req, buf.Bytes(),
+	repoURI := s.endpoint.Path[1:]
+	fmt.Fprintf(os.Stderr, "Creating MsgUpdateReferences, repo URI: '%s'\n", s.endpoint.Path)
+	msg, err := gitService.NewMsgUpdateReferences(repoURI, req, buf.Bytes(),
 		s.client.author)
 	if err != nil {
 		fmt.Fprintf(os.Stderr,

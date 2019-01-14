@@ -37,6 +37,8 @@ func (dw *deltaSelector) ObjectsToPack(
 	hashes []plumbing.Hash,
 	packWindow uint,
 ) ([]*ObjectToPack, error) {
+	logger := getLogger()
+	logger.Debug().Msgf("Determining objects to pack corresponding to hashes")
 	otp, err := dw.objectsToPack(hashes, packWindow)
 	if err != nil {
 		return nil, err
@@ -88,13 +90,17 @@ func (dw *deltaSelector) objectsToPack(
 	hashes []plumbing.Hash,
 	packWindow uint,
 ) ([]*ObjectToPack, error) {
+	logger := getLogger()
+
 	var objectsToPack []*ObjectToPack
 	for _, h := range hashes {
 		var o plumbing.EncodedObject
 		var err error
 		if packWindow == 0 {
+			logger.Debug().Msgf("Encoding non-delta object")
 			o, err = dw.encodedObject(h)
 		} else {
+			logger.Debug().Msgf("Encoding delta object")
 			o, err = dw.encodedDeltaObject(h)
 		}
 		if err != nil {

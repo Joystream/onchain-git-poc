@@ -58,6 +58,8 @@ func (e *Encoder) Encode(
 }
 
 func (e *Encoder) encode(objects []*ObjectToPack) (plumbing.Hash, error) {
+	logger := getLogger()
+	logger.Debug().Msgf("Encoding %d object(s)", len(objects))
 	if err := e.head(len(objects)); err != nil {
 		return plumbing.ZeroHash, err
 	}
@@ -81,6 +83,12 @@ func (e *Encoder) head(numEntries int) error {
 }
 
 func (e *Encoder) entry(o *ObjectToPack) error {
+	logger := getLogger()
+	logger.Debug().
+		Str("hash", o.Hash().String()).
+		Bool("isDelta", o.IsDelta()).
+		Str("type", o.Type().String()).
+		Msgf("Encoder writing object")
 	if o.WantWrite() {
 		// A cycle exists in this delta chain. This should only occur if a
 		// selected object representation disappeared during writing
@@ -142,6 +150,7 @@ func (e *Encoder) writeBaseIfDelta(o *ObjectToPack) error {
 }
 
 func (e *Encoder) writeDeltaHeader(o *ObjectToPack) error {
+	logger := getLogger()
 	// Write offset deltas by default
 	t := plumbing.OFSDeltaObject
 	if e.useRefDeltas {
@@ -153,8 +162,10 @@ func (e *Encoder) writeDeltaHeader(o *ObjectToPack) error {
 	}
 
 	if e.useRefDeltas {
+		logger.Debug().Msgf("Encoder writing reference delta header")
 		return e.writeRefDeltaHeader(o.Base.Hash())
 	} else {
+		logger.Debug().Msgf("Encoder writing offset delta header")
 		return e.writeOfsDeltaHeader(o)
 	}
 }

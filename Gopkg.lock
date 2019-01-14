@@ -433,6 +433,19 @@
   version = "v1.6.0"
 
 [[projects]]
+  digest = "1:a073c2dd83aa92060bd5b551e3a19a40f8e24d4aaa7e7da767ee9c69f07b533a"
+  name = "github.com/rs/zerolog"
+  packages = [
+    ".",
+    "internal/cbor",
+    "internal/json",
+    "log",
+  ]
+  pruneopts = "UT"
+  revision = "8747b7b3a51b5d08ee7ac50eaf4869edaf9f714a"
+  version = "v1.11.0"
+
+[[projects]]
   digest = "1:d917313f309bda80d27274d53985bc65651f81a5b66b820749ac7f8ef061fd04"
   name = "github.com/sergi/go-diff"
   packages = ["diffmatchpatch"]
@@ -866,6 +879,7 @@
     "github.com/cosmos/cosmos-sdk/client/keys",
     "github.com/cosmos/cosmos-sdk/client/rpc",
     "github.com/cosmos/cosmos-sdk/client/tx",
+    "github.com/cosmos/cosmos-sdk/client/utils",
     "github.com/cosmos/cosmos-sdk/cmd/gaia/init",
     "github.com/cosmos/cosmos-sdk/codec",
     "github.com/cosmos/cosmos-sdk/server",
@@ -876,6 +890,8 @@
     "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder",
     "github.com/cosmos/cosmos-sdk/x/stake",
     "github.com/pkg/errors",
+    "github.com/rs/zerolog",
+    "github.com/rs/zerolog/log",
     "github.com/spf13/cobra",
     "github.com/spf13/viper",
     "github.com/tendermint/go-amino",
@@ -886,15 +902,12 @@
     "github.com/tendermint/tendermint/libs/db",
     "github.com/tendermint/tendermint/libs/log",
     "github.com/tendermint/tendermint/types",
-    "gopkg.in/src-d/go-billy.v4",
     "gopkg.in/src-d/go-billy.v4/osfs",
     "gopkg.in/src-d/go-git.v4",
     "gopkg.in/src-d/go-git.v4/config",
     "gopkg.in/src-d/go-git.v4/plumbing",
     "gopkg.in/src-d/go-git.v4/plumbing/cache",
     "gopkg.in/src-d/go-git.v4/plumbing/format/idxfile",
-    "gopkg.in/src-d/go-git.v4/plumbing/format/index",
-    "gopkg.in/src-d/go-git.v4/plumbing/format/objfile",
     "gopkg.in/src-d/go-git.v4/plumbing/format/packfile",
     "gopkg.in/src-d/go-git.v4/plumbing/object",
     "gopkg.in/src-d/go-git.v4/plumbing/protocol/packp",
@@ -903,7 +916,7 @@
     "gopkg.in/src-d/go-git.v4/plumbing/storer",
     "gopkg.in/src-d/go-git.v4/plumbing/transport",
     "gopkg.in/src-d/go-git.v4/plumbing/transport/client",
-    "gopkg.in/src-d/go-git.v4/storage",
+    "gopkg.in/src-d/go-git.v4/plumbing/transport/file",
     "gopkg.in/src-d/go-git.v4/storage/filesystem",
     "gopkg.in/src-d/go-git.v4/utils/ioutil",
   ]
