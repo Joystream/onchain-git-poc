@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	cosmosContext "github.com/cosmos/cosmos-sdk/client/context"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
 	"github.com/pkg/errors"
+	"github.com/rs/zerolog/log"
 	gogit "gopkg.in/src-d/go-git.v4"
 	gogitcfg "gopkg.in/src-d/go-git.v4/config"
 	"gopkg.in/src-d/go-git.v4/plumbing"
@@ -99,15 +99,15 @@ func isFastForward(repo *gogit.Repository, old, new plumbing.Hash) (bool, error)
 func resolveLocalRef(refSpec gogitcfg.RefSpec, repo *gogit.Repository) (
 	*plumbing.ReferenceName, error) {
 	refName := plumbing.ReferenceName(refSpec.Src())
-	fmt.Fprintf(os.Stderr, "Resolving reference '%v' in local repo\n", refName)
+	log.Debug().Msgf("Resolving reference '%v' in local repo", refName)
 	resolved, err := gogitstor.ResolveReference(repo.Storer, refName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving ref '%s'\n", refName)
+		log.Debug().Msgf("Error resolving ref '%s'", refName)
 		return nil, err
 	}
 	if resolved != nil {
 		refName = resolved.Name()
-		fmt.Fprintf(os.Stderr, "Resolved local reference to '%v'\n", refName)
+		log.Debug().Msgf("Resolved local reference to '%v'", refName)
 	}
 
 	return &refName, nil
@@ -194,18 +194,18 @@ func pushToBlockChain(ctx context.Context, uri string, refSpecs []gogitcfg.RefSp
 	repo *gogit.Repository, cliCtx cosmosContext.CLIContext,
 	txBldr authtxb.TxBuilder, author sdk.AccAddress, moduleName string) error {
 	// TODO: Verify that URL is of joystream protocol
-	fmt.Fprintf(os.Stderr, "Pushing '%s' to blockchain at '%s'\n", refSpecs[0], uri)
+	log.Debug().Msgf("Pushing '%s' to blockchain at '%s'", refSpecs[0], uri)
 	c, err := newJoystreamClient(uri, cliCtx, txBldr, author, moduleName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create client for URL '%s'\n", uri)
+		log.Debug().Msgf("Failed to create client for URL '%s'", uri)
 		return err
 	}
 
 	// Start a session for uploading data to the endpoint
-	fmt.Fprintf(os.Stderr, "Starting session\n")
+	log.Debug().Msgf("Starting session")
 	session, err := c.NewReceivePackSession(c.ep, &DummyAuth{})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed opening session for URL '%s'\n", uri)
+		log.Debug().Msgf("Failed opening session for URL '%s'", uri)
 		return err
 	}
 	defer ioutil.CheckClose(session, &err)
@@ -239,13 +239,13 @@ func pushToBlockChain(ctx context.Context, uri string, refSpecs []gogitcfg.RefSp
 	for _, ref := range localRefs {
 		localRefStrings = append(localRefStrings, ref.Name().String())
 	}
-	fmt.Fprintf(os.Stderr, "Got local references: %v\n", strings.Join(localRefStrings, ", "))
+	log.Debug().Msgf("Got local references: %v", strings.Join(localRefStrings, ", "))
 	req := packp.NewReferenceUpdateRequest()
 	if err := computeRefUpdateCmds(refSpecs, localRefs, remoteRefs, repo, req); err != nil {
 		return err
 	}
 	if len(req.Commands) == 0 {
-		fmt.Fprintf(os.Stderr, "Remote is already up to date\n")
+		log.Debug().Msgf("Remote is already up to date")
 		return errAlreadyUpToDate
 	}
 
@@ -285,7 +285,7 @@ func pushHashes(ctx context.Context, sess transport.ReceivePackSession, repo *go
 	go func() {
 		useRefDeltas := !advRefs.Capabilities.Supports(capability.OFSDelta)
 		encoder := packfile.NewEncoder(wr, repo.Storer, useRefDeltas)
-		fmt.Fprintf(os.Stderr, "Encoding packfile to writer\n")
+		log.Debug().Msgf("Encoding packfile to writer")
 		// Write encoded packfile into writing end of pipe, the Joystream client will in turn
 		// read this data from the reading end of the pipe and close it. After the reading end of
 		// the pipe is closed, the encoding finishes.
@@ -299,12 +299,12 @@ func pushHashes(ctx context.Context, sess transport.ReceivePackSession, repo *go
 		// of reference names to commit hashes. This way the client will know which references
 		// need updating/adding/deleting.
 		if _, err = encoder.Encode(hashes, config.Pack.Window); err != nil {
-			fmt.Fprintf(os.Stderr, "Packfile encoding failed: %v\n", err)
+			log.Debug().Msgf("Packfile encoding failed: %v", err)
 			done <- wr.CloseWithError(err)
 			return
 		}
 
-		fmt.Fprintf(os.Stderr, "Packfile encoding succeeded, closing writer\n")
+		log.Debug().Msgf("Packfile encoding succeeded, closing writer")
 		done <- wr.Close()
 	}()
 
@@ -315,13 +315,13 @@ func pushHashes(ctx context.Context, sess transport.ReceivePackSession, repo *go
 	}
 
 	// Wait on done to be written to, which happens after encoder.Encode returns
-	fmt.Fprintf(os.Stderr, "Waiting for packfile encoding to finish\n")
+	log.Debug().Msgf("Waiting for packfile encoding to finish")
 	if err := <-done; err != nil {
-		fmt.Fprintf(os.Stderr, "Packfile encoding finished with an error: %v\n", err)
+		log.Debug().Msgf("Packfile encoding finished with an error: %v", err)
 		return nil, err
 	}
 
-	fmt.Fprintf(os.Stderr, "Packfile writing finished successfully\n")
+	log.Debug().Msgf("Packfile writing finished successfully")
 	return reportStatus, nil
 }
 
@@ -334,17 +334,17 @@ func computeRefUpdateCmds(refSpecs []gogitcfg.RefSpec, localRefs []*plumbing.Ref
 		name2LocalRef[ref.Name().String()] = ref
 	}
 
-	fmt.Fprintf(os.Stderr, "Determining remote references to update\n")
+	log.Debug().Msgf("Determining remote references to update")
 	req.Commands = make([]*packp.Command, 0)
 	for _, refSpec := range refSpecs {
-		fmt.Fprintf(os.Stderr, "Handling RefSpec '%v'\n", refSpec)
+		log.Debug().Msgf("Handling RefSpec '%v'", refSpec)
 		if refSpec.IsDelete() {
-			fmt.Fprintf(os.Stderr, "It's a deletion\n")
+			log.Debug().Msgf("It's a deletion")
 			if err := deleteReferences(refSpec, remoteRefs, req); err != nil {
 				return err
 			}
 		} else {
-			fmt.Fprintf(os.Stderr, "It's not a deletion\n")
+			log.Debug().Msgf("It's not a deletion")
 			// If it is not a wilcard refspec we can search directly for the reference
 			// in the references map
 			if !refSpec.IsWildcard() {
@@ -355,7 +355,7 @@ func computeRefUpdateCmds(refSpecs []gogitcfg.RefSpec, localRefs []*plumbing.Ref
 
 				localRef, ok := name2LocalRef[refName.String()]
 				if !ok {
-					fmt.Fprintf(os.Stderr, "Couldn't find local ref corresponding to RefSpec %s\n",
+					log.Debug().Msgf("Couldn't find local ref corresponding to RefSpec %s",
 						refSpec.Src())
 					continue
 				}
@@ -382,7 +382,7 @@ func computeRefUpdateCmds(refSpecs []gogitcfg.RefSpec, localRefs []*plumbing.Ref
 // if required conditions are met
 func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 	localRef *plumbing.Reference, req *packp.ReferenceUpdateRequest, repo *gogit.Repository) error {
-	fmt.Fprintf(os.Stderr, "Determining whether to add a command to ReferenceUpdateRequest\n")
+	log.Debug().Msgf("Determining whether to add a command to ReferenceUpdateRequest")
 	if localRef.Type() != plumbing.HashReference {
 		return nil
 	}
@@ -419,22 +419,22 @@ func addReference(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStorer,
 	}
 
 	if cmd.Old == plumbing.ZeroHash {
-		fmt.Fprintf(os.Stderr, "Adding reference to remote %s -> %s\n", cmd.Name, cmd.New)
+		log.Debug().Msgf("Adding reference to remote %s -> %s", cmd.Name, cmd.New)
 	} else {
-		fmt.Fprintf(os.Stderr, "Updating reference in remote %s -> %s\n", cmd.Name, cmd.New)
+		log.Debug().Msgf("Updating reference in remote %s -> %s", cmd.Name, cmd.New)
 	}
 
 	if !refSpec.IsForceUpdate() {
-		fmt.Fprintf(os.Stderr, "Not in force mode - verifying update is a fast forward\n")
+		log.Debug().Msgf("Not in force mode - verifying update is a fast forward")
 		if err := checkFastForwardUpdate(repo, remoteRefs, cmd); err != nil {
 			return err
 		}
 	}
 
 	if cmd.Old == plumbing.ZeroHash {
-		fmt.Fprintf(os.Stderr, "Adding command for adding reference '%s' -> '%s'\n", cmd.Name, cmd.New)
+		log.Debug().Msgf("Adding command for adding reference '%s' -> '%s'", cmd.Name, cmd.New)
 	} else {
-		fmt.Fprintf(os.Stderr, "Adding command for updating reference '%s'; old: '%s', new: '%s'\n",
+		log.Debug().Msgf("Adding command for updating reference '%s'; old: '%s', new: '%s'",
 			cmd.Name, cmd.Old, cmd.New)
 	}
 	req.Commands = append(req.Commands, cmd)
@@ -457,7 +457,7 @@ func deleteReferences(refSpec gogitcfg.RefSpec, remoteRefs storer.ReferenceStore
 			return nil
 		}
 
-		fmt.Fprintf(os.Stderr, "Adding command to delete reference '%s'\n", ref.Name())
+		log.Debug().Msgf("Adding command to delete reference '%s'", ref.Name())
 		cmd := &packp.Command{
 			Name: ref.Name(),
 			Old:  ref.Hash(),

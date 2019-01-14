@@ -3,11 +3,11 @@ package gitService
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/rs/zerolog/log"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp"
 	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp/capability"
@@ -44,7 +44,7 @@ func (k Keeper) ListRefs(ctx sdk.Context, owner string, repo string) []string {
 func (k Keeper) GetAdvertisedReferences(ctx sdk.Context, owner string, repo string) (
 	*packp.AdvRefs, error) {
 	uri := fmt.Sprintf("%s/%s", owner, repo)
-	fmt.Fprintf(os.Stderr, "Keeper getting advertised references for repo '%s'\n", uri)
+	log.Debug().Msgf("Keeper getting advertised references for repo '%s'", uri)
 	ar := packp.NewAdvRefs()
 	if err := setSupportedCapabilities(ar.Capabilities); err != nil {
 		return nil, err
@@ -91,8 +91,7 @@ func setReferences(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
 			}
 			hash := string(hashBytes)
 
-			fmt.Fprintf(os.Stderr,
-				"Keeper adding reference '%s' -> '%s' to advertised references\n", refName, hash)
+			log.Debug().Msgf("Keeper adding reference '%s' -> '%s' to advertised references", refName, hash)
 			ar.References[refName] = plumbing.NewHash(string(hash))
 		}
 	}
@@ -102,27 +101,27 @@ func setReferences(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
 
 func setHead(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
 	headPath := fmt.Sprintf("%s/HEAD", uri)
-	fmt.Fprintf(os.Stderr, "Keeper determining repository head, path: '%s'\n", headPath)
+	log.Debug().Msgf("Keeper determining repository head, path: '%s'", headPath)
 	refBytes := store.Get([]byte(headPath))
 	if refBytes == nil {
-		fmt.Fprintf(os.Stderr, "Repository doesn't have head\n")
+		log.Debug().Msgf("Repository doesn't have head")
 		return nil
 	}
 	refStr := string(refBytes)
 
 	ref := plumbing.NewReferenceFromStrings("HEAD", refStr)
 	if ref.Type() == plumbing.SymbolicReference {
-		fmt.Fprintf(os.Stderr, "Repository head reference is symbolic, target: '%s'\n", refStr)
+		log.Debug().Msgf("Repository head reference is symbolic, target: '%s'", refStr)
 		if err := ar.AddReference(ref); err != nil {
 			return nil
 		}
 
 		// Get target reference
 		headPath = fmt.Sprintf("%s/%s", uri, ref.Target())
-		fmt.Fprintf(os.Stderr, "Keeper getting repository head reference, path: '%s'\n", headPath)
+		log.Debug().Msgf("Keeper getting repository head reference, path: '%s'", headPath)
 		refBytes = store.Get([]byte(headPath))
 		if refBytes == nil {
-			fmt.Fprintf(os.Stderr, "Failed to get the contents of head reference at '%s'\n", headPath)
+			log.Debug().Msgf("Failed to get the contents of head reference at '%s'", headPath)
 			return nil
 		}
 		refStr = string(refBytes)
@@ -136,7 +135,7 @@ func setHead(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
 
 	h := ref.Hash()
 	ar.Head = &h
-	fmt.Fprintf(os.Stderr, "Determined repo head: '%s'\n", ar.Head)
+	log.Debug().Msgf("Determined repo head: '%s'", ar.Head)
 
 	return nil
 }
@@ -144,11 +143,11 @@ func setHead(store sdk.KVStore, ar *packp.AdvRefs, uri string) error {
 // UpdateReferences updates a set of Git references
 func (k Keeper) UpdateReferences(ctx sdk.Context, msg MsgUpdateReferences) sdk.Error {
 	if !reRepoURI.MatchString(msg.URI) {
-		fmt.Fprintf(os.Stderr, "Invalid repo URI: '%s'\n", msg.URI)
+		log.Debug().Msgf("Invalid repo URI: '%s'", msg.URI)
 		return sdk.ErrUnknownRequest(fmt.Sprintf("Invalid repo URI: '%s'", msg.URI))
 	}
 
-	fmt.Fprintf(os.Stderr, "Keeper updating references in repo '%s'\n", msg.URI)
+	log.Debug().Msgf("Keeper updating references in repo '%s'", msg.URI)
 	// TODO: Verify that user is authorized to write to repo
 	store := ctx.KVStore(k.gitStoreKey)
 	if !store.Has([]byte(fmt.Sprintf("%s/HEAD", msg.URI))) {
@@ -169,7 +168,7 @@ func (k Keeper) UpdateReferences(ctx sdk.Context, msg MsgUpdateReferences) sdk.E
 }
 
 func initializeRepo(store sdk.KVStore, msg MsgUpdateReferences) error {
-	fmt.Fprintf(os.Stderr, "Keeper - store doesn't have repo '%s', initializing it\n", msg.URI)
+	log.Debug().Msgf("Keeper - store doesn't have repo '%s', initializing it", msg.URI)
 	store.Set([]byte(fmt.Sprintf("%s/HEAD", msg.URI)), []byte("ref: refs/heads/master"))
 	store.Set([]byte(fmt.Sprintf("%s/config", msg.URI)), []byte(`[core]
 	repositoryformatversion = 0
@@ -179,13 +178,13 @@ func initializeRepo(store sdk.KVStore, msg MsgUpdateReferences) error {
 }
 
 func referenceExists(store sdk.KVStore, refPath string) bool {
-	fmt.Fprintf(os.Stderr, "Checking if reference exists: '%s'\n", refPath)
+	log.Debug().Msgf("Checking if reference exists: '%s'", refPath)
 	if !store.Has([]byte(refPath)) {
-		fmt.Fprintf(os.Stderr, "Reference doesn't exist: '%s'\n", refPath)
+		log.Debug().Msgf("Reference doesn't exist: '%s'", refPath)
 		return false
 	}
 
-	fmt.Fprintf(os.Stderr, "Reference exists: '%s'\n", refPath)
+	log.Debug().Msgf("Reference exists: '%s'", refPath)
 	return true
 }
 
@@ -198,7 +197,7 @@ func writeReference(store sdk.KVStore, refPath string, cmd *UpdateReferenceComma
 	case plumbing.HashReference:
 		content = ref.Hash().String()
 	}
-	fmt.Fprintf(os.Stderr, "Writing reference '%s': '%s'\n", refPath, content)
+	log.Debug().Msgf("Writing reference '%s': '%s'", refPath, content)
 	store.Set([]byte(refPath), []byte(content))
 }
 
@@ -206,7 +205,7 @@ func writeReference(store sdk.KVStore, refPath string, cmd *UpdateReferenceComma
 func updateReferences(store sdk.KVStore, msg MsgUpdateReferences) error {
 	errUpdateReference := errors.New("Failed to update reference")
 
-	fmt.Fprintf(os.Stderr, "Updating references\n")
+	log.Debug().Msgf("Updating references")
 	for _, cmd := range msg.Commands {
 		if !strings.HasPrefix(cmd.Name.String(), "refs/") {
 			panic(fmt.Sprintf("Reference doesn't start with refs/: '%s'", cmd.Name))
@@ -216,28 +215,28 @@ func updateReferences(store sdk.KVStore, msg MsgUpdateReferences) error {
 		switch cmd.Action() {
 		case CreateAction:
 			if exists {
-				fmt.Fprintf(os.Stderr, "Can't create reference '%s' as it already exists\n", refPath)
+				log.Debug().Msgf("Can't create reference '%s' as it already exists", refPath)
 				return errUpdateReference
 			}
 
-			fmt.Fprintf(os.Stderr, "Creating reference '%s' pointing to hash '%s'\n", refPath,
+			log.Debug().Msgf("Creating reference '%s' pointing to hash '%s'", refPath,
 				cmd.New)
 			writeReference(store, refPath, cmd)
 		case packp.Delete:
 			if !exists {
-				fmt.Fprintf(os.Stderr, "Can't delete reference '%s' as it doesn't exist\n", refPath)
+				log.Debug().Msgf("Can't delete reference '%s' as it doesn't exist", refPath)
 				return errUpdateReference
 			}
 
-			fmt.Fprintf(os.Stderr, "Deleting reference '%s'\n", refPath)
+			log.Debug().Msgf("Deleting reference '%s'", refPath)
 			store.Delete([]byte(refPath))
 		case packp.Update:
 			if !exists {
-				fmt.Fprintf(os.Stderr, "Can't update reference '%s' as it doesn't exist\n", refPath)
+				log.Debug().Msgf("Can't update reference '%s' as it doesn't exist", refPath)
 				return errUpdateReference
 			}
 
-			fmt.Fprintf(os.Stderr, "Updating reference '%s' to point to hash '%s'\n", refPath,
+			log.Debug().Msgf("Updating reference '%s' to point to hash '%s'", refPath,
 				cmd.New)
 			writeReference(store, refPath, cmd)
 		}
@@ -249,11 +248,11 @@ func updateReferences(store sdk.KVStore, msg MsgUpdateReferences) error {
 // RemoveRepository deletes a repository
 func (k Keeper) RemoveRepository(ctx sdk.Context, msg MsgRemoveRepository) sdk.Error {
 	if !reRepoURI.MatchString(msg.URI) {
-		fmt.Fprintf(os.Stderr, "Invalid repository URI: '%s'\n", msg.URI)
+		log.Debug().Msgf("Invalid repository URI: '%s'", msg.URI)
 		return sdk.ErrUnknownRequest(fmt.Sprintf("Invalid repository URI: '%s'", msg.URI))
 	}
 
-	fmt.Fprintf(os.Stderr, "Keeper removing repository '%s'\n", msg.URI)
+	log.Debug().Msgf("Keeper removing repository '%s'", msg.URI)
 	// TODO: Verify that user is authorized to write to repo
 	store := ctx.KVStore(k.gitStoreKey)
 	iter := store.Iterator(nil, nil)
@@ -261,7 +260,7 @@ func (k Keeper) RemoveRepository(ctx sdk.Context, msg MsgRemoveRepository) sdk.E
 	for ; iter.Valid(); iter.Next() {
 		key := string(iter.Key())
 		if strings.HasPrefix(key, fmt.Sprintf("%s/", msg.URI)) {
-			fmt.Fprintf(os.Stderr, "Keeper removing removing entry '%s' from store\n", key)
+			log.Debug().Msgf("Keeper removing removing entry '%s' from store", key)
 			store.Delete(iter.Key())
 		}
 	}

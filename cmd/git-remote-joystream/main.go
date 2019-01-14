@@ -3,19 +3,19 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"regexp"
 	"strings"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
 
 var reJoystreamURL = regexp.MustCompile("joystream://(.+)/(.+)/(.+)")
 
 func handlePushBatch(args [][]string, repo repository) error {
-	fmt.Fprintf(os.Stderr, "Handling push batch for repo %v: %v\n", repo, args)
-	fmt.Printf("\n")
+	log.Debug().Msgf("Handling push batch for repo %v: %v", repo, args)
 	return nil
 	// repo, fs, err := r.initRepoIfNeeded(ctx, gitCmdPush)
 	// if err != nil {
@@ -115,9 +115,9 @@ func handlePushBatch(args [][]string, repo repository) error {
 }
 
 func handleList(repo repository, command []string) error {
-	fmt.Fprintf(os.Stderr, "Listing refs in %v - command: %v\n", repo, command)
+	log.Debug().Msgf("Listing refs in %v - command: %v", repo, command)
 	if len(command) == 1 && command[0] == "for-push" {
-		fmt.Fprintf(os.Stderr, "Treating for-push the same as a regular list\n")
+		log.Debug().Msgf("Treating for-push the same as a regular list")
 	} else if len(command) > 0 {
 		return fmt.Errorf("Bad list request: %v", command)
 	}
@@ -140,6 +140,9 @@ func (r repository) String() string {
 }
 
 func cmdRoot(_ *cobra.Command, args []string) error {
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	var url string
 	if len(args) == 1 {
 		url = args[0]
@@ -152,7 +155,7 @@ func cmdRoot(_ *cobra.Command, args []string) error {
 	}
 	repo := repository{chainID: m[1], owner: m[2], name: m[3]}
 
-	fmt.Fprintf(os.Stderr, "Starting, repo: %v/%v/%v\n", repo.chainID, repo.owner, repo.name)
+	log.Debug().Msgf("Starting, repo: %v/%v/%v", repo.chainID, repo.owner, repo.name)
 
 	var pushBatch [][]string
 	reader := bufio.NewReader(os.Stdin)
@@ -160,17 +163,17 @@ func cmdRoot(_ *cobra.Command, args []string) error {
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Ending due to closed input\n")
+			log.Debug().Msgf("Ending due to closed input")
 			break
 		}
 
 		command := strings.TrimSpace(line)
 		commandParts := strings.Fields(command)
-		fmt.Fprintf(os.Stderr, "Received command '%v'\n", command)
+		log.Debug().Msgf("Received command '%v'", command)
 		if len(commandParts) == 0 {
-			fmt.Fprintf(os.Stderr, "Received a blank line, command terminated\n")
+			log.Debug().Msgf("Received a blank line, command terminated")
 			if len(pushBatch) > 0 {
-				fmt.Fprintf(os.Stderr, "Processing push batch\n")
+				log.Debug().Msgf("Processing push batch")
 				if err := handlePushBatch(pushBatch, repo); err != nil {
 					return err
 				}
@@ -185,9 +188,9 @@ func cmdRoot(_ *cobra.Command, args []string) error {
 			case "list":
 				handleList(repo, commandParts[1:])
 			case "push":
-				fmt.Fprintf(os.Stderr, "Pushing - args: %v, %v\n", args[0], args[1])
+				log.Debug().Msgf("Pushing - args: %v, %v", args[0], args[1])
 				pushBatch = append(pushBatch, commandParts[1:])
-				fmt.Fprintf(os.Stderr, "Push batch: %v\n", pushBatch)
+				log.Debug().Msgf("Push batch: %v", pushBatch)
 			}
 
 			if err != nil {
@@ -209,6 +212,6 @@ func main() {
 		RunE:  cmdRoot,
 	}
 	if err := rootCmd.Execute(); err != nil {
-		log.Fatalf("Unrecoverable error: %v\n", err)
+		log.Fatal().Msgf("Unrecoverable error: %s", err)
 	}
 }

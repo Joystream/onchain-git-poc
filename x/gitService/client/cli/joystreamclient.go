@@ -6,7 +6,6 @@ import (
 	encJson "encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 
 	cosmosContext "github.com/cosmos/cosmos-sdk/client/context"
@@ -14,6 +13,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	authtxb "github.com/cosmos/cosmos-sdk/x/auth/client/txbuilder"
 	"github.com/joystream/onchain-git-poc/x/gitService"
+	"github.com/rs/zerolog/log"
 
 	"gopkg.in/src-d/go-git.v4/plumbing"
 	"gopkg.in/src-d/go-git.v4/plumbing/protocol/packp"
@@ -39,7 +39,7 @@ func newJoystreamClient(uri string, cliCtx cosmosContext.CLIContext, txBldr auth
 	url := fmt.Sprintf("joystream://blockchain/%s", uri)
 	ep, err := transport.NewEndpoint(url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create endpoint for URL '%s'\n", url)
+		log.Debug().Msgf("Failed to create endpoint for URL '%s'", url)
 		return nil, err
 	}
 	return &joystreamClient{
@@ -53,7 +53,7 @@ func newJoystreamClient(uri string, cliCtx cosmosContext.CLIContext, txBldr auth
 
 func (*joystreamClient) NewUploadPackSession(*transport.Endpoint, transport.AuthMethod) (
 	transport.UploadPackSession, error) {
-	fmt.Fprintf(os.Stderr, "Joystream client creating UploadPackSession\n")
+	log.Debug().Msgf("Joystream client creating UploadPackSession")
 	return nil, nil
 }
 
@@ -69,7 +69,7 @@ type rpSession struct {
 
 func (c *joystreamClient) NewReceivePackSession(ep *transport.Endpoint,
 	authMethod transport.AuthMethod) (transport.ReceivePackSession, error) {
-	fmt.Fprintf(os.Stderr, "Joystream client creating ReceivePackSession\n")
+	log.Debug().Msgf("Joystream client creating ReceivePackSession")
 
 	sess := &rpSession{
 		authMethod: authMethod,
@@ -81,11 +81,11 @@ func (c *joystreamClient) NewReceivePackSession(ep *transport.Endpoint,
 }
 
 func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
-	fmt.Fprintf(os.Stderr, "Joystream client getting advertised references\n")
+	log.Debug().Msgf("Joystream client getting advertised references")
 
 	queryPath := fmt.Sprintf("custom/%s/advertisedReferences/%s", s.client.moduleName,
 		s.client.ep.Path[1:])
-	fmt.Fprintf(os.Stderr, "Joystream client making query, path: '%s'", queryPath)
+	log.Debug().Msgf("Joystream client making query, path: '%s'", queryPath)
 	res, err := s.client.cliCtx.QueryWithData(queryPath, nil)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
 	if err := encJson.Unmarshal(res, &advRefs); err != nil {
 		return nil, err
 	}
-	fmt.Fprintf(os.Stderr, "Joystream client got advertised references from server: %+v\n",
+	log.Debug().Msgf("Joystream client got advertised references from server: %+v",
 		advRefs.References)
 
 	return advRefs, nil
@@ -107,14 +107,14 @@ func (s *rpSession) AdvertisedReferences() (*packp.AdvRefs, error) {
 func (s *rpSession) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateRequest) (
 	*packp.ReportStatus, error) {
 
-	fmt.Fprintf(os.Stderr, "Joystream client sending reference update request to endpoint\n")
+	log.Debug().Msgf("Joystream client sending reference update request to endpoint")
 
 	// TODO: Make references update atomic
 
-	fmt.Fprintf(os.Stderr, "Joystream client encoding packfile...\n")
+	log.Debug().Msgf("Joystream client encoding packfile...")
 	buf := bytes.NewBuffer(nil)
 	if _, err := io.Copy(buf, req.Packfile); err != nil {
-		fmt.Fprintf(os.Stderr, "Joystream client failed to encode packfile: %s\n", err)
+		log.Debug().Msgf("Joystream client failed to encode packfile: %s", err)
 		req.Packfile.Close()
 		return s.reportStatus(), err
 	}
@@ -123,21 +123,20 @@ func (s *rpSession) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateR
 	}
 
 	repoURI := s.endpoint.Path[1:]
-	fmt.Fprintf(os.Stderr, "Creating MsgUpdateReferences, repo URI: '%s'\n", s.endpoint.Path)
+	log.Debug().Msgf("Creating MsgUpdateReferences, repo URI: '%s'", s.endpoint.Path)
 	msg, err := gitService.NewMsgUpdateReferences(repoURI, req, buf.Bytes(),
 		s.client.author)
 	if err != nil {
-		fmt.Fprintf(os.Stderr,
-			"Joystream client failed to create MsgUpdateReferences: %s\n", err)
+		log.Debug().Msgf("Joystream client failed to create MsgUpdateReferences: %s", err)
 		return s.reportStatus(), err
 	}
-	fmt.Fprintf(os.Stderr,
-		"Joystream client sending MsgUpdateReferences to server for repo '%s' with %d command(s)\n",
+	log.Debug().Msgf(
+		"Joystream client sending MsgUpdateReferences to server for repo '%s' with %d command(s)",
 		msg.URI, len(msg.Commands))
 
 	if err := utils.CompleteAndBroadcastTxCli(s.client.txBldr, s.client.cliCtx,
 		[]sdk.Msg{msg}); err != nil {
-		fmt.Fprintf(os.Stderr, "Sending MsgUpdateReferences to node failed: %s\n", err)
+		log.Debug().Msgf("Sending MsgUpdateReferences to node failed: %s", err)
 		return s.reportStatus(), err
 	}
 
@@ -159,11 +158,11 @@ func (s *rpSession) ReceivePack(ctx context.Context, req *packp.ReferenceUpdateR
 	// reportStatus.UnpackStatus = "ok"
 	// error := reportStatus.Error()
 	// if error != nil {
-	// 	fmt.Fprintf(os.Stderr, "Error making report status: %s\n", error)
+	// 	log.Debug().Msgf("Error making report status: %s", error)
 	// 	return nil, error
 	// }
 
-	// fmt.Fprintf(os.Stderr, "Returning report status: %v\n", reportStatus)
+	// log.Debug().Msgf("Returning report status: %v", reportStatus)
 	// return reportStatus, nil
 }
 

@@ -16,9 +16,14 @@ import (
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
 	app "github.com/joystream/onchain-git-poc"
 	gitServiceClient "github.com/joystream/onchain-git-poc/x/gitService/client"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+
 	cobra.EnableCommandSorting = false
 
 	cdc := app.MakeCodec()
@@ -54,7 +59,7 @@ func main() {
 	executor := cli.PrepareMainCmd(rootCmd, "NS", defaultCLIHome)
 	err := executor.Execute()
 	if err != nil {
-		panic(err)
+		log.Fatal().Msgf("Unrecoverable error: %s", err)
 	}
 }
 
